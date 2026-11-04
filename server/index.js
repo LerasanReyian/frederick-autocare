@@ -10,8 +10,8 @@ import { installStaffAccess, newStaffId, cookieValue, entryCookieHeader } from "
 import { initializeDatabase, databaseStartupMessage } from "./initialize-db.js";
 
 const app = express();
-const port = Number(process.env.API_PORT || 3002);
-const host = process.env.API_HOST || "127.0.0.1";
+const port = Number(process.env.PORT || process.env.API_PORT || 3002);
+const host = process.env.API_HOST || "0.0.0.0";
 const allowedOrigins = (process.env.CORS_ORIGIN || "").split(",").map((origin) => origin.trim()).filter(Boolean);
 
 app.disable("x-powered-by");
@@ -393,7 +393,14 @@ app.get(['/', '/inventory'], (_request, response) => response.sendFile(`${distDi
 app.use((error, _request, response, next) => {
   if (response.headersSent) return next(error);
   if (error?.code === "ER_DUP_ENTRY") {
-    return response.status(409).json({ error: "That SKU is already in use. Enter a unique SKU." });
+    const requestPath = _request.path;
+    if (requestPath.startsWith("/products")) {
+      return response.status(409).json({ error: "That SKU is already in use. Enter a unique SKU." });
+    }
+    if (requestPath.startsWith("/auth/requests")) {
+      return response.status(409).json({ error: "An account request already exists for that email." });
+    }
+    return response.status(409).json({ error: "That record already exists. Review the details and try again." });
   }
   if (error?.type === "entity.parse.failed") {
     return response.status(400).json({ error: "Request body must contain valid JSON." });

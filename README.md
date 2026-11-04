@@ -50,6 +50,8 @@ Open the local URL printed by Vite (typically `http://localhost:5173`).
 Vite proxies `/api` requests to the local Express API on port `3002`.
 For a separate frontend/API origin, set `VITE_API_BASE_URL` when building the frontend and set `CORS_ORIGIN` on the API to the exact frontend origin. Do not put database credentials in any `VITE_*` variable.
 
+Azure infrastructure definitions are in [terraform/README.md](./terraform/README.md).
+
 ### Available scripts
 
 | Command | Description |
@@ -149,18 +151,11 @@ frontend source code, screenshots, or chat.
 ```text
 frederick-autocare/
 ├── public/
-│   ├── car-360.mp4
 │   ├── favicon.svg
-│   └── icons.svg
+│   └── manifest.webmanifest
 ├── src/
-│   ├── assets/
-│   │   ├── hero.png
-│   │   ├── react.svg
-│   │   └── vite.svg
 │   ├── components/
 │   │   ├── BookingModal.jsx
-│   │   ├── CarVideoScrubber.jsx
-│   │   ├── CarVisualizer.jsx
 │   │   ├── Footer.jsx
 │   │   ├── Header.jsx
 │   │   ├── InventoryPortal.tsx
@@ -237,15 +232,15 @@ previous broken database directory was preserved as
 file-copy attempt was preserved as
 `C:\xampp\mysql\data\frederick_autocare-raw-copy-20261104-1848`. The database
 was rebuilt through a logical SQL export/import, so its InnoDB dictionary is
-consistent. The recovered source and logical dump remain in
-`.local-db-restored/` and `.local-db-backup-20261104/`.
+consistent. The temporary recovery copies were removed after the repaired database was verified.
 
 
 
 ## November 2026 storefront and PWA update
 
 - Rebuilt the public storefront around the supplied car-reveal video, retaining crimson/navy branding, all 13 services, contact details, booking flow, and the staff portal.
-- `public/drive-reveal.mp4` is a silent, frequent-keyframe version of the supplied clip, trimmed by 2.65 seconds to start as the car appears. The 5.25-second film stays at full opacity without a filter or dimming layer. The first 70% of a viewport of scroll drives 38% of the clip; the remaining scroll drives the camera orbit. Reverse scroll reverses the film. There is no playback/progress bar. Direct user-driven scroll seeking works with reduced-motion preferences too; decorative CSS transitions remain disabled in that mode.
+- `public/drive-reveal.mp4` and `public/drive-reveal.webm` are silent, seek-friendly encodes of the supplied 7.93-second, 1920x1080 clip, with a matching 1280x720 poster and 126-frame WebP fallback. The film stays at full opacity without a filter or dimming layer. The first 70% of a viewport of scroll drives 38% of the clip; the remaining scroll drives the camera orbit. Reverse scroll reverses the film. There is no playback/progress bar. Direct user-driven scroll seeking works with reduced-motion preferences too; decorative CSS transitions remain disabled in that mode.
+- Mobile navigation uses a fixed-header-safe anchor offset, full-width readable content panels, stacked primary actions, and a centered film crop at phone widths. The PWA precaches the poster and matching fallback frames while API responses remain network-only.
 - Production PWA: manifest, 192/512px icons, install control, offline shell and poster. Bookings and staff API responses are never cached or queued. Offline visitors can read the shop guide; submissions and staff access need a connection. New worker versions activate when older tabs close.
 - `npm run build` builds the frontend and generates the versioned service worker. `npm start` starts the API and serves the built site at **http://127.0.0.1:3002/**. The staff portal is **http://127.0.0.1:3002/inventory**. After source edits, rebuild before using this URL.
 - `npm run dev:all` starts both the backend and Vite for editing at **http://127.0.0.1:5173/**. Do not start a second backend if one is already running. Service workers register only in production builds.

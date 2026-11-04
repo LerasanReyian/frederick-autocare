@@ -51,7 +51,7 @@ export function databaseStartupMessage(error) {
     return `Cannot connect to MariaDB at ${endpoint}. Start MySQL in XAMPP and confirm its configured port matches DB_PORT in .env. If MySQL stops immediately, inspect the MySQL error log first.`;
   }
   if (error.errno === 1932 || error.code === "ER_NO_SUCH_TABLE_IN_ENGINE") {
-    return `Database startup failed: ${error.sqlMessage || error.message}. The configured MariaDB instance contains stale InnoDB table entries. Do not drop or overwrite its database files. This installation uses the recovered database on 127.0.0.1:3308; set DB_PORT=3308 and LOCAL_DB_AUTOSTART=true in .env, then restart the API.`;
+    return `Database startup failed: ${error.sqlMessage || error.message}. The configured MariaDB instance contains stale InnoDB table entries. Do not drop or overwrite database files. Verify the configured database against a known-good backup and repair it with a logical SQL export/import before restarting the API.`;
   }
   return `Unable to initialize inventory database: ${error.message}`;
 }

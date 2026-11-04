@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 
 const FRAME_COUNT = 126
+const FILM_WIDTH = 1280
+const FILM_HEIGHT = 720
 function scrollProgress() {
   const distance = Math.max(1, document.documentElement.scrollHeight - window.innerHeight)
   const scroll = Math.max(0, Math.min(distance, window.scrollY))
@@ -23,7 +25,7 @@ export default function ScrollFilm() {
     let stopped = false
     let waitingSince = 0
     let changedAt = performance.now()
-    const compatible = video.canPlayType('video/webm; codecs="vp9"') || video.canPlayType('video/mp4; codecs="avc1.640028"')
+    const compatible = video.canPlayType('video/webm') || video.canPlayType('video/mp4')
     function fallback() { if (!stopped) setUseFrames(true) }
     function seek() {
       frame = 0
@@ -139,7 +141,7 @@ export default function ScrollFilm() {
   return <div className="film-backdrop" aria-hidden="true" data-renderer={useFrames ? 'frames' : 'video'}>
     {useFrames ? <>
       <img src="/drive-reveal.jpg" alt="" />
-      <canvas ref={canvasRef} className="film-frames" width="1280" height="720" />
+      <canvas ref={canvasRef} className="film-frames" width={FILM_WIDTH} height={FILM_HEIGHT} />
     </> : <video ref={videoRef} poster="/drive-reveal.jpg" muted playsInline preload="auto" disablePictureInPicture onError={() => setUseFrames(true)}>
       <source src="/drive-reveal.webm" type="video/webm" />
       <source src="/drive-reveal.mp4" type="video/mp4" />

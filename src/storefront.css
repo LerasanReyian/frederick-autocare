@@ -224,3 +224,47 @@
 .film-interlude h2 em { color:#e8edf0;-webkit-text-stroke:0; }
 .storefront .site-footer { background:rgba(9,17,24,.82); }
 .storefront .site-footer .brand-name,.storefront .site-footer .brand-name span,.storefront .footer-tagline,.storefront .footer-address,.storefront .footer-bottom { color:white; }
+
+/* Keep mobile sections aligned below the fixed header and readable at phone widths. */
+.storefront main { min-width: 0; }
+.storefront .drive-section,
+.storefront #services,
+.storefront #about,
+.storefront #process,
+.storefront #contact { scroll-margin-top: 96px; }
+@media (max-width: 900px) {
+  .storefront .site-header { z-index: 20; }
+  .storefront .header-inner { width: calc(100% - 32px); }
+  .storefront .brand { min-width: 0; }
+  .storefront .brand-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .storefront .main-nav { z-index: 21; }
+}
+@media (max-width: 760px) {
+  .storefront .drive-hero { padding: 104px 20px 24px; }
+  .storefront .drive-hero-copy { max-width: 100%; padding: 112px 0 56px; }
+  .storefront .drive-hero h1 { max-width: 7ch; font-size: clamp(52px, 15vw, 78px); }
+  .storefront .drive-hero-copy > p:not(.chapter-label) { max-width: 25ch; }
+  .storefront .drive-actions { align-items: flex-start; flex-direction: column; gap: 12px; }
+  .storefront .drive-actions .button { width: fit-content; }
+  .storefront .drive-section { align-items: stretch; padding: 72px 16px; }
+  .storefront .content-panel { box-sizing: border-box; max-width: 100%; padding: 24px 18px; }
+  .storefront .content-panel h2 { font-size: clamp(38px, 12vw, 52px); }
+  .storefront .section-intro { margin-block: 16px 22px; }
+  .storefront .catalog-grid { min-width: 0; }
+  .storefront .catalog-controls,
+  .storefront .catalog-search,
+  .storefront .catalog-filters { min-width: 0; }
+  .storefront .catalog-filter { max-width: 100%; }
+  .storefront .film-interlude { align-items: flex-start; padding: 48px 20px; text-align: left; }
+  .storefront .film-interlude > div,
+  .storefront .film-interlude > p { max-width: 100%; }
+  .storefront .film-backdrop video,
+  .storefront .film-backdrop img,
+  .storefront .film-backdrop .film-frames { object-position: 50% center; }
+}
+@media (max-width: 380px) {
+  .storefront .brand-name { font-size: 9px; letter-spacing: .11em; }
+  .storefront .drive-hero { padding-inline: 16px; }
+  .storefront .drive-section { padding-inline: 12px; }
+  .storefront .content-panel { padding-inline: 15px; }
+}

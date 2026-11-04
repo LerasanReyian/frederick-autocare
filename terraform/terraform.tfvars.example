@@ -1,0 +1,21 @@
+project_name       = "frederick-autocare"
+location           = "southeastasia"
+resource_group_name = "frederick-autocare-rg"
+
+# Both names must be globally unique in Azure.
+app_name          = "replace-with-a-unique-app-name"
+mysql_server_name = "replace-with-a-unique-mysql-name"
+
+mysql_admin_user     = "frederickadmin"
+mysql_admin_password = "replace-with-a-strong-database-password"
+app_admin_password   = "replace-with-a-strong-application-admin-password"
+app_employee_password = "replace-with-a-strong-employee-password"
+
+# Use your public IPv4 address for initial schema import, then remove the
+# firewall rule after setup by setting operator_ip back to 0.0.0.0.
+operator_ip = "0.0.0.0"
+allow_azure_services = true
+
+# Supply the current Azure MySQL CA certificate as base64 for strict TLS.
+db_ssl_ca_base64           = ""
+db_ssl_reject_unauthorized = true

@@ -457,18 +457,6 @@ inputs, displays a review step, submits to `POST /api/bookings`, and shows a
 success or error state. Date and time values are parsed and displayed using
 the shop's Asia/Manila timezone.
 
-#### `CarVisualizer.jsx`
-
-Builds the optional Three.js sedan visualizer from reusable mesh pieces. It
-uses React Three Fiber and Drei for the canvas, camera controls, lighting,
-hotspots, and 3D interaction.
-
-#### `CarVideoScrubber.jsx`
-
-Provides the current rotating-car video experience. It supports mouse and
-touch dragging, autoplay, reset, service hotspots, and browser-local hotspot
-calibration. It also displays a fallback when the video cannot load.
-
 #### `InventoryPortal.tsx`
 
 Contains the staff portal and its major workflows:
@@ -491,8 +479,8 @@ models.
 
 #### `servicesData.js`
 
-Stores the public service catalog used by service cards, booking dropdowns,
-and visualizer/video service hotspots. Keeping the catalog in one module
+Stores the public service catalog used by service cards and booking dropdowns.
+Keeping the catalog in one module
 prevents different parts of the storefront from displaying inconsistent
 service information.
 
@@ -504,19 +492,12 @@ Encapsulates the open/close state for the booking modal so the header, service
 catalog, video hotspots, and modal can work together without duplicating modal
 state logic.
 
-### `src/assets/`
-
-Contains imported frontend assets such as the hero image and starter SVG
-assets.
-
 ### `public/`
 
 Contains files served directly without being imported into the JavaScript
 bundle:
 
-- `car-360.mp4` - rotating vehicle video.
 - `favicon.svg` - browser tab icon.
-- `icons.svg` - public SVG resource.
 
 ### Backend files
 

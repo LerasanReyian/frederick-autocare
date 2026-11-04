@@ -178,32 +178,69 @@ function LoginView({ onLogin, onResetEntry, idVerified, initialRegistering = fal
     </form>
     <button className="staff-request-link" type="button" onClick={() => { if (registering && !idVerified) { onResetEntry(); return; } setRegistering(value => !value); setError(""); setSuccess(""); }}>{registering ? "Back to sign in" : "Need access? Request an employee account"}</button>
     <button className="staff-request-link" type="button" onClick={onResetEntry}>Use a different staff ID</button>
-    <a className="staff-home-link" href="/">Back to the public website →</a>
   </StaffEntryLayout>;
+}
+
+class InventoryRequestError extends Error {
+  status: number;
+  code?: string;
+  retryable: boolean;
+
+  constructor(message: string, status = 0, code?: string, retryable = false) {
+    super(message);
+    this.name = "InventoryRequestError";
+    this.status = status;
+    this.code = code;
+    this.retryable = retryable;
+  }
+}
+
+function requestErrorMessage(status: number, serverMessage: string | undefined, code: string | undefined) {
+  if (code === "STAFF_ID_REQUIRED") return "Verify your staff ID before signing in.";
+  if (status === 401) return "Your staff session has expired. Sign in again.";
+  if (status === 403) return serverMessage || "You do not have permission to complete that action.";
+  if (status === 409) return serverMessage || "That change conflicts with existing information. Review your entries and try again.";
+  if (status === 429) return serverMessage || "Too many attempts. Please wait a moment and try again.";
+  if (status >= 500) return "The staff service is temporarily unavailable. Please try again shortly.";
+  return serverMessage || `The request could not be completed (${status}).`;
 }
 
 async function inventoryRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
   const baseUrl = import.meta.env.VITE_API_BASE_URL ?? "";
-  const response = await fetch(`${baseUrl}/api${path}`, {
-    ...options,
-    credentials: "include",
-    headers: {
-      ...(options.body ? { "Content-Type": "application/json" } : {}),
-      ...options.headers,
-    },
-  });
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 12000);
+  let response: Response;
+  try {
+    response = await fetch(`${baseUrl}/api${path}`, {
+      ...options,
+      signal: options.signal ?? controller.signal,
+      credentials: "include",
+      headers: {
+        ...(options.body ? { "Content-Type": "application/json" } : {}),
+        ...options.headers,
+      },
+    });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new InventoryRequestError("The request timed out. Check your connection and try again.", 0, undefined, true);
+    }
+    throw new InventoryRequestError("The staff service could not be reached. Check your connection and try again.", 0, undefined, true);
+  } finally {
+    window.clearTimeout(timeout);
+  }
 
-  let result: ({ error?: string } & T);
+  let result: ({ error?: string; code?: string } & T);
   try {
     const contentType = response.headers.get("content-type") || "";
     if (!contentType.includes("application/json")) {
-      throw new Error(`The inventory API at ${baseUrl || "the Vite proxy"} returned a non-JSON response. Restart the current backend server.`);
+      throw new Error("The staff service returned an unexpected response. Please try again shortly.");
     }
     result = await response.json();
-  } catch {
-    throw new Error("The staff service is unavailable. Please try again shortly.");
+  } catch (error) {
+    if (error instanceof InventoryRequestError) throw error;
+    throw new InventoryRequestError("The staff service returned an unreadable response. Please try again shortly.", response.status, undefined, response.status >= 500);
   }
-  if (!response.ok) throw new Error(result.error || `Inventory request failed (${response.status}).`);
+  if (!response.ok) throw new InventoryRequestError(requestErrorMessage(response.status, result.error, result.code), response.status, result.code, response.status >= 500 || response.status === 429);
   return result;
 }
 
@@ -446,7 +483,7 @@ function InventoryDashboard({ session, onLogout }: { session: Session; onLogout:
       setProducts((items) => items.map((item) => item.id === product.id ? updated : item));
       setApiError("");
     } catch (error) {
-      setApiError(error instanceof Error ? error.message : "Unable to update stock in MySQL.");
+      setApiError(error instanceof Error ? error.message : "Unable to update stock. Please try again.");
     }
   }
 
@@ -457,7 +494,7 @@ function InventoryDashboard({ session, onLogout }: { session: Session; onLogout:
       setProducts((items) => items.filter((item) => item.id !== product.id));
       setApiError("");
     } catch (error) {
-      setApiError(error instanceof Error ? error.message : "Unable to delete product from MySQL.");
+      setApiError(error instanceof Error ? error.message : "Unable to delete this product. Please try again.");
     }
   }
 
@@ -520,7 +557,7 @@ function InventoryDashboard({ session, onLogout }: { session: Session; onLogout:
       setSelectedIds([]);
       setApiError("");
     } catch (error) {
-      setApiError(error instanceof Error ? error.message : "Unable to delete selected products from MySQL.");
+      setApiError(error instanceof Error ? error.message : "Unable to delete the selected products. Please try again.");
     }
   }
 
@@ -613,14 +650,14 @@ function InventoryDashboard({ session, onLogout }: { session: Session; onLogout:
                 <p className="mt-2 text-sm text-zinc-500">Track products, parts, and shop supplies in one place.</p>
               </div>
               <p className={`rounded-full border bg-white px-3 py-1.5 text-xs font-medium ${apiError ? "border-rose-200 text-rose-600" : "border-zinc-200 text-zinc-500"}`}>
-                <span className={`mr-2 inline-block size-2 rounded-full ${apiError ? "bg-rose-500" : "bg-emerald-500"}`}></span>{loadingProducts ? "Connecting to MySQL" : apiError ? "Database unavailable" : "MySQL database"}
+                <span className={`mr-2 inline-block size-2 rounded-full ${apiError ? "bg-rose-500" : "bg-emerald-500"}`}></span>{loadingProducts ? "Loading workspace" : apiError ? "Needs attention" : "Workspace ready"}
               </p>
             </div>
 
             {apiError && (
               <div className="mx-auto mt-5 flex max-w-7xl flex-wrap items-center justify-between gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800" role="alert">
                 <span>{apiError}</span>
-                <button type="button" onClick={() => window.location.reload()} className="font-bold underline underline-offset-2">Retry connection</button>
+                <button type="button" onClick={() => window.location.reload()} className="font-bold underline underline-offset-2">Try again</button>
               </div>
             )}
 
@@ -716,8 +753,8 @@ function InventoryDashboard({ session, onLogout }: { session: Session; onLogout:
             {activeSection !== "Inventory" && activeSection !== "Overview" && activeSection !== "Account requests" && activeSection !== "Bookings" && (
               <section className="border border-zinc-200 bg-white p-8 shadow-sm">
                 <p className="text-xs font-black uppercase tracking-[0.2em] text-red-600">{activeSection}</p>
-                <h2 className="mt-2 text-xl font-bold">{activeSection} are not part of this local demo</h2>
-                <p className="mt-2 max-w-xl text-sm leading-relaxed text-zinc-500">The MySQL integration currently stores inventory items only. No {activeSection.toLowerCase()} data is connected.</p>
+                <h2 className="mt-2 text-xl font-bold">{activeSection} are not available yet</h2>
+                <p className="mt-2 max-w-xl text-sm leading-relaxed text-zinc-500">This workspace does not have {activeSection.toLowerCase()} tools connected yet.</p>
                 <Button className="mt-5" onClick={() => setActiveSection("Inventory")}>Back to inventory</Button>
               </section>
             )}
@@ -776,7 +813,7 @@ function InventoryDashboard({ session, onLogout }: { session: Session; onLogout:
                   </div>
                 </div>}
 
-                {loadingProducts && <div className="px-5 py-14 text-center text-sm text-zinc-500">Loading inventory from MySQL...</div>}
+                {loadingProducts && <div className="px-5 py-14 text-center text-sm text-zinc-500">Loading inventory...</div>}
 
                 {!loadingProducts && !apiError && (
                 <div className="hidden overflow-x-auto md:block">
@@ -914,7 +951,7 @@ function App() {
     catch { setLogoutError("Could not sign out. Check your connection and try again."); }
   }
   if (checkingSession) return <div className="portal-loading" role="status">Opening the staff workspace…</div>;
-  if (!session && !entryVerified && !requestAccess) return <StaffEntryLayout><StaffAccessForm onVerified={() => setEntryVerified(true)} /><button type="button" className="staff-request-link" onClick={() => setRequestAccess(true)}>New employee? Request an account</button><a href="/" className="staff-home-link">Back to the public website →</a></StaffEntryLayout>;
+  if (!session && !entryVerified && !requestAccess) return <StaffEntryLayout><StaffAccessForm onVerified={() => setEntryVerified(true)} /><button type="button" className="staff-request-link" onClick={() => setRequestAccess(true)}>New employee? Request an account</button></StaffEntryLayout>;
   if (!session) return <LoginView onLogin={setSession} onResetEntry={resetEntry} idVerified={entryVerified} initialRegistering={requestAccess} />;
   return <>{logoutError && <p className="staff-logout-error" role="alert">{logoutError}</p>}<InventoryDashboard session={session} onLogout={logout} /></>;
 }

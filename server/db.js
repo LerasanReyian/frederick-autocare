@@ -1,3 +1,4 @@
+import { Buffer } from "node:buffer";
 import mysql from "mysql2/promise";
 import process from "node:process";
 
@@ -6,6 +7,20 @@ const missingEnvironment = requiredEnvironment.filter((key) => !process.env[key]
 
 if (missingEnvironment.length > 0) {
   throw new Error(`Missing required database configuration: ${missingEnvironment.join(", ")}`);
+}
+
+function getSslConfig() {
+  if (process.env.DB_SSL !== "true") return undefined;
+  const certificate = process.env.DB_SSL_CA_BASE64
+    ? Buffer.from(process.env.DB_SSL_CA_BASE64, "base64").toString("utf8")
+    : process.env.DB_SSL_CA;
+  if (!certificate && process.env.DB_SSL_REJECT_UNAUTHORIZED !== "false") {
+    throw new Error("DB_SSL=true requires DB_SSL_CA or DB_SSL_CA_BASE64 unless DB_SSL_REJECT_UNAUTHORIZED=false is explicitly configured.");
+  }
+  return {
+    ...(certificate ? { ca: certificate } : {}),
+    rejectUnauthorized: process.env.DB_SSL_REJECT_UNAUTHORIZED !== "false",
+  };
 }
 
 const pool = mysql.createPool({
@@ -20,6 +35,7 @@ const pool = mysql.createPool({
   timezone: "+08:00",
   queueLimit: 0,
   decimalNumbers: true,
+  ssl: getSslConfig(),
 });
 
 export default pool;
