@@ -8,7 +8,7 @@ This project uses MariaDB through XAMPP. The verified local server is MariaDB
 script is [database/schema.sql](../database/schema.sql); it creates the
 database, six tables, constraints, indexes, and 12 sample inventory products.
 
-## 2. Requirements
+## 2. Requirements 
 
 1. Install XAMPP with its MySQL/MariaDB module.
 2. Use a MariaDB server compatible with the SQL in
