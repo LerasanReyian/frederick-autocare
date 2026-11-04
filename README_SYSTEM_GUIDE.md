@@ -251,7 +251,8 @@ Copy-Item .env.example .env
 ```
 
 Review `.env` and make sure `DB_PORT` matches the database port shown by XAMPP.
-The current project setup uses `3307`.
+The current project setup uses the repaired XAMPP database on port `3307`.
+The original broken database directory was preserved as a dated backup.
 
 ### Initialize the database
 

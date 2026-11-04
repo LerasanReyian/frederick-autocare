@@ -231,7 +231,14 @@ automated customer email/SMS notifications remain outside this local QA pass.
 
 ## Recovered database on this computer
 
-The repaired installation uses .local-db-restored/ on localhost port 3308. XAMPP currently occupies port 3307; its Frederick tables are unreadable (InnoDB error 1932), so they are left untouched. A pre-start backup is preserved in .local-db-backup-20261104/. The private .env enables LOCAL_DB_AUTOSTART=true, so npm run server starts this database when needed. XAMPP MySQL is not required for this installation. The local database continues running when the API stops. Keep .local-db-restored/ in your backups; it is excluded from Git. This setup uses the MariaDB executable in C:/xampp/mysql/bin and leaves the original XAMPP data directory unchanged. To return to a repaired XAMPP instance later, disable LOCAL_DB_AUTOSTART and update DB_PORT in .env.
+The repaired installation uses XAMPP MariaDB on localhost port 3307. The
+previous broken database directory was preserved as
+`C:\xampp\mysql\data\frederick_autocare-broken-20261104-1842`; a failed raw
+file-copy attempt was preserved as
+`C:\xampp\mysql\data\frederick_autocare-raw-copy-20261104-1848`. The database
+was rebuilt through a logical SQL export/import, so its InnoDB dictionary is
+consistent. The recovered source and logical dump remain in
+`.local-db-restored/` and `.local-db-backup-20261104/`.
 
 
 
@@ -267,4 +274,6 @@ Staff login now requires a database-backed ID check before password sign-in. Eac
 
 The supplied `a.mp4` is used for the staff video hero, with WebM and MP4 versions. Public dialogs blur the background and prevent background interaction; fonts and touch targets are larger. See `QA_CHECKPOINT.md` for tested flows and remaining QA scope.
 
-phpMyAdmin opens the recovered database on port 3308; its optional invalid pma control-user configuration has been disabled. Start the project with `npm start` before opening phpMyAdmin if the recovered database is stopped. Original XAMPP database files were not dropped or replaced.
+phpMyAdmin should connect to the repaired XAMPP database on port 3307. Start
+the XAMPP MySQL module before opening phpMyAdmin. The original broken database
+files were preserved rather than deleted.
