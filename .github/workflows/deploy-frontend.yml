@@ -1,4 +1,4 @@
-name: Deploy frontend to Azure App Service
+name: Build and deploy full system to Azure
 
 on:
   push:
@@ -10,15 +10,19 @@ permissions:
   id-token: write
 
 env:
-  NODE_VERSION: "20.x"
+  NODE_VERSION: "22.x"
   AZURE_WEBAPP_NAME: ${{ vars.AZURE_WEBAPP_NAME }}
   AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
-  VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
+  # Frontend and API share the same origin on App Service.
+  VITE_API_BASE_URL: ""
+
+concurrency:
+  group: azure-production
+  cancel-in-progress: false
 
 jobs:
-  build-and-deploy:
+  build:
     runs-on: ubuntu-latest
-    environment: production
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -32,13 +36,52 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build frontend
+      - name: Run tests
+        run: npm test
+
+      - name: Lint source
+        run: npm run lint
+
+      - name: Build frontend and PWA
         run: npm run build
         env:
           VITE_API_BASE_URL: ${{ env.VITE_API_BASE_URL }}
 
-      - name: Run tests
-        run: npm test
+      - name: Prepare allowlisted runtime package
+        run: npm run package:azure
+
+      - name: Install Linux production dependencies
+        working-directory: .azure-package
+        run: npm ci --omit=dev
+
+      - name: Create deployment archive
+        working-directory: .azure-package
+        run: zip -qr ../azure-deploy.zip .
+
+      - name: Save deployable artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: azure-runtime
+          path: azure-deploy.zip
+          retention-days: 3
+
+  deploy:
+    needs: build
+    # Build/test remains usable before Azure student activation is complete.
+    if: ${{ vars.AZURE_DEPLOY_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Validate resource configuration
+        shell: bash
+        run: |
+          test -n "$AZURE_WEBAPP_NAME" || { echo "Set repository variable AZURE_WEBAPP_NAME"; exit 1; }
+          test -n "$AZURE_RESOURCE_GROUP" || { echo "Set repository variable AZURE_RESOURCE_GROUP"; exit 1; }
+
+      - name: Download tested runtime package
+        uses: actions/download-artifact@v4
+        with:
+          name: azure-runtime
 
       - name: Log in to Azure
         uses: azure/login@v2
@@ -54,14 +97,25 @@ jobs:
             az webapp config appsettings set \
               --resource-group "$AZURE_RESOURCE_GROUP" \
               --name "$AZURE_WEBAPP_NAME" \
-              --settings SCM_DO_BUILD_DURING_DEPLOYMENT=true WEBSITE_NODE_DEFAULT_VERSION=~20
+              --settings SCM_DO_BUILD_DURING_DEPLOYMENT=false NODE_ENV=production API_HOST=0.0.0.0
             az webapp config set \
               --resource-group "$AZURE_RESOURCE_GROUP" \
               --name "$AZURE_WEBAPP_NAME" \
-              --startup-file "npm run preview -- --host 0.0.0.0 --port 8080"
+              --linux-fx-version "NODE|22-lts" \
+              --startup-file "npm start"
 
-      - name: Deploy frontend
+      - name: Deploy website and API together
         uses: azure/webapps-deploy@v3
         with:
           app-name: ${{ env.AZURE_WEBAPP_NAME }}
-          package: .
+          package: azure-deploy.zip
+
+      - name: Verify public site, staff page and database health
+        shell: bash
+        run: |
+          host=$(az webapp show --resource-group "$AZURE_RESOURCE_GROUP" --name "$AZURE_WEBAPP_NAME" --query defaultHostName --output tsv)
+          test -n "$host"
+          curl --fail --silent --show-error --retry 12 --retry-all-errors --retry-delay 10 "https://$host/api/health" | python3 -c 'import json,sys; result=json.load(sys.stdin); assert result.get("status")=="ok" and result.get("database")=="connected", result'
+          curl --fail --silent --show-error "https://$host/" --output /dev/null
+          curl --fail --silent --show-error "https://$host/inventory" --output /dev/null
+          echo "Published site: https://$host" >> "$GITHUB_STEP_SUMMARY"

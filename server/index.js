@@ -15,6 +15,8 @@ const host = process.env.API_HOST || "0.0.0.0";
 const allowedOrigins = (process.env.CORS_ORIGIN || "").split(",").map((origin) => origin.trim()).filter(Boolean);
 
 app.disable("x-powered-by");
+// Azure terminates HTTPS at its reverse proxy; honor it for Secure cookies.
+if (process.env.WEBSITE_SITE_NAME) app.set("trust proxy", 1);
 app.use((request, response, next) => {
   const origin = request.get("Origin");
   if (origin && allowedOrigins.includes(origin)) {
@@ -69,6 +71,10 @@ async function ensureAuthSchema() {
   for (const account of defaultAccounts) {
     const [rows] = await pool.execute("SELECT id FROM inventory_users WHERE email = ?", [account.email]);
     if (rows.length === 0) {
+      const passwordSetting = account.role === "admin" ? "ADMIN_PASSWORD" : "EMPLOYEE_PASSWORD";
+      if ((process.env.NODE_ENV === "production" || process.env.VERCEL) && (!process.env[passwordSetting] || process.env[passwordSetting].length < 12)) {
+        throw new Error(`Set ${passwordSetting} to a unique password of at least 12 characters before creating a production account.`);
+      }
       await pool.execute(
         "INSERT INTO inventory_users (id, name, email, password_hash, role) VALUES (?, ?, ?, ?, ?)",
         [account.id, account.name, account.email, hashPassword(account.password), account.role],
@@ -388,7 +394,7 @@ app.use(express.static(distDirectory, {
     if (path.endsWith('sw.js') || path.endsWith('index.html')) response.setHeader('Cache-Control', 'no-cache');
   },
 }));
-app.get(['/', '/inventory'], (_request, response) => response.sendFile(`${distDirectory}/index.html`));
+app.get(['/', '/inventory'], (_request, response) => response.sendFile('index.html', { root: distDirectory }));
 
 app.use((error, _request, response, next) => {
   if (response.headersSent) return next(error);

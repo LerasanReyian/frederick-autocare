@@ -5,5 +5,10 @@ dist
 .env
 .env.*
 .local-db
+.local-db-restored
+.local-db-backup-*
+.azure-package
+azure-deploy.zip
+.vercel
 .qa
 *.log

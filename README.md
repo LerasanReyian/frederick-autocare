@@ -52,46 +52,18 @@ For a separate frontend/API origin, set `VITE_API_BASE_URL` when building the fr
 
 ### Deploy with GitHub Actions to Azure
 
-The repository includes separate workflows for the React frontend and API:
+See [AZURE_DEPLOYMENT.md](./AZURE_DEPLOYMENT.md) for the current activation,
+resource, data-migration, environment and GitHub OIDC instructions.
 
-- `.github/workflows/deploy-frontend.yml` deploys the Vite build to Azure App
-  Service.
-- `.github/workflows/deploy-backend.yml` builds the API image, pushes it to
-  Azure Container Registry, and deploys it to Azure Container Apps.
+The current target is one Linux App Service serving the built website and API
+with `npm start`, plus Azure Database for MySQL Flexible Server. The frontend
+uses same-origin `/api` requests. The old split Container Apps workflow is now
+manual and disabled unless explicitly enabled.
 
-Create a GitHub `production` environment and configure these repository or
-environment variables:
-
-```text
-AZURE_RESOURCE_GROUP
-AZURE_WEBAPP_NAME
-AZURE_CONTAINER_APP_NAME
-AZURE_CONTAINER_REGISTRY
-VITE_API_BASE_URL
-```
-
-Configure these environment secrets for GitHub Actions using an Azure
-application with federated credentials:
-
-```text
-AZURE_CLIENT_ID
-AZURE_TENANT_ID
-AZURE_SUBSCRIPTION_ID
-```
-
-Configure the API database and authentication settings in Azure Container Apps
-environment variables, not in GitHub or the frontend build:
-
-```text
-DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME
-DB_SSL, DB_SSL_CA, DB_SSL_CA_BASE64
-ADMIN_EMAIL, ADMIN_PASSWORD, EMPLOYEE_EMAIL, EMPLOYEE_PASSWORD
-SESSION_HOURS, CORS_ORIGIN
-```
-
-The backend container listens on port `3002`. Set `VITE_API_BASE_URL` to the
-public HTTPS URL of the Container App, for example
-`https://frederick-autocare-api.example.azurecontainerapps.io`.
+The workflow builds, tests, lints and packages the runtime. Deployment remains
+skipped until the repository variable `AZURE_DEPLOY_ENABLED=true` is configured
+after Azure resources, database settings and credentials are ready. The student
+subscription has not yet been activated; Azure publication is not complete.
 
 
 ### Available scripts
