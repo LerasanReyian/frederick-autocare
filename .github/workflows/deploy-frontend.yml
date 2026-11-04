@@ -40,7 +40,28 @@ jobs:
       - name: Run tests
         run: npm test
 
+      - name: Check Azure deployment configuration
+        id: azure-config
+        shell: bash
+        run: |
+          missing=()
+
+          [[ -n "${AZURE_WEBAPP_NAME}" ]] || missing+=("AZURE_WEBAPP_NAME variable")
+          [[ -n "${AZURE_RESOURCE_GROUP}" ]] || missing+=("AZURE_RESOURCE_GROUP variable")
+          [[ -n "${{ secrets.AZURE_CLIENT_ID }}" ]] || missing+=("AZURE_CLIENT_ID secret")
+          [[ -n "${{ secrets.AZURE_TENANT_ID }}" ]] || missing+=("AZURE_TENANT_ID secret")
+          [[ -n "${{ secrets.AZURE_SUBSCRIPTION_ID }}" ]] || missing+=("AZURE_SUBSCRIPTION_ID secret")
+
+          if [[ ${#missing[@]} -gt 0 ]]; then
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Skipping Azure deployment because required configuration is missing: ${missing[*]}"
+            exit 0
+          fi
+
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+
       - name: Log in to Azure
+        if: steps.azure-config.outputs.ready == 'true'
         uses: azure/login@v2
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
@@ -48,6 +69,7 @@ jobs:
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: Configure App Service
+        if: steps.azure-config.outputs.ready == 'true'
         uses: azure/cli@v2
         with:
           inlineScript: |
@@ -61,6 +83,7 @@ jobs:
               --startup-file "npm run preview -- --host 0.0.0.0 --port 8080"
 
       - name: Deploy frontend
+        if: steps.azure-config.outputs.ready == 'true'
         uses: azure/webapps-deploy@v3
         with:
           app-name: ${{ env.AZURE_WEBAPP_NAME }}
