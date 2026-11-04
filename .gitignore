@@ -35,9 +35,3 @@ dist-ssr
 .qa/
 
 # Terraform local state and secrets
-terraform/.terraform/
-terraform/*.tfstate
-terraform/*.tfstate.*
-terraform/*.tfvars
-!terraform/terraform.tfvars.example
-terraform/crash.log

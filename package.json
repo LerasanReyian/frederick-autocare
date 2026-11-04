@@ -7,6 +7,7 @@
     "dev": "vite",
     "server": "node server/start.js",
     "build": "vite build && node scripts/build-pwa.js",
+    "vercel-build": "npm run build",
     "lint": "eslint .",
     "preview": "vite preview",
     "start": "node server/start.js",
@@ -14,6 +15,9 @@
     "test": "node --test tests/*.test.js"
   },
   "dependencies": {
+    "@nestjs/common": "^11.2.8",
+    "@nestjs/core": "^11.2.8",
+    "@nestjs/platform-express": "^11.2.8",
     "@react-three/drei": "^10.7.9",
     "@react-three/fiber": "^9.8.1",
     "@tailwindcss/vite": "^4.3.3",
@@ -24,6 +28,8 @@
     "prop-types": "^15.8.1",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2",
     "tailwindcss": "^4.3.3",
     "three": "^0.186.1"
   },

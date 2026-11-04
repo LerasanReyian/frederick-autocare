@@ -32,7 +32,9 @@ React + Vite frontend
           |
           | /api requests
           v
-Express backend
+NestJS runtime adapter
+          |
+          | Express-compatible API handlers
           |
           | mysql2 connection pool
           v
@@ -40,7 +42,7 @@ XAMPP MariaDB database
 ```
 
 The frontend is not connected directly to MariaDB. The browser communicates
-with the Express backend, and only the backend communicates with the database.
+with the NestJS-hosted API, and only the backend communicates with the database.
 This protects database credentials and gives the server a central place to
 validate permissions and data.
 
@@ -365,7 +367,7 @@ include:
 - Tailwind CSS for utility styling.
 - Lucide React for interface icons.
 - React Three Fiber, Drei, and Three.js for the 3D visualizer.
-- Express for the API server.
+- NestJS runtime hosting the existing Express-compatible API handlers.
 - `mysql2` for MariaDB access.
 - `dotenv` for environment configuration.
 

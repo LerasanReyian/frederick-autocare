@@ -50,14 +50,13 @@ Open the local URL printed by Vite (typically `http://localhost:5173`).
 Vite proxies `/api` requests to the local Express API on port `3002`.
 For a separate frontend/API origin, set `VITE_API_BASE_URL` when building the frontend and set `CORS_ORIGIN` on the API to the exact frontend origin. Do not put database credentials in any `VITE_*` variable.
 
-Azure infrastructure definitions are in [terraform/README.md](./terraform/README.md).
 
 ### Available scripts
 
 | Command | Description |
 | --- | --- |
 | `npm run dev` | Start the Vite development server |
-| `npm run server` | Start the Express inventory API |
+| `npm run server` | Start the local inventory API |
 | `npm run build` | Create a production build in `dist/` |
 | `npm run preview` | Preview the production build locally |
 | `npm run lint` | Run ESLint |
@@ -244,9 +243,20 @@ consistent. The temporary recovery copies were removed after the repaired databa
 - Production PWA: manifest, 192/512px icons, install control, offline shell and poster. Bookings and staff API responses are never cached or queued. Offline visitors can read the shop guide; submissions and staff access need a connection. New worker versions activate when older tabs close.
 - `npm run build` builds the frontend and generates the versioned service worker. `npm start` starts the API and serves the built site at **http://127.0.0.1:3002/**. The staff portal is **http://127.0.0.1:3002/inventory**. After source edits, rebuild before using this URL.
 - `npm run dev:all` starts both the backend and Vite for editing at **http://127.0.0.1:5173/**. Do not start a second backend if one is already running. Service workers register only in production builds.
-- Installation works on localhost or an HTTPS deployment. For remote hosting, configure HTTPS and database credentials; this task did not deploy the project publicly.
+- Vercel deployment uses `vercel.json`, builds the Vite frontend, and serves `/api/*` through the NestJS runtime adapter. Configure the MySQL environment variables in the Vercel project settings; the database must be reachable from Vercel and should use TLS.
 - `npm test` verifies Philippine-time appointment validation, including late-afternoon times, Sundays, invalid calendar dates, and past times. API booking creation serializes requests for the same time to prevent concurrent duplicate slots.
 - Verified locally in Chrome: desktop and 390px mobile layout, forward/reverse scrubbing, filters/search, booking selection, reduced-motion mode, offline reload, and no cached private API data. Chrome PWA installability returned no errors in a normal test profile. Full browser booking submission and staff sign-in/session restoration also passed. Backend verification covered recovered data (12 products, 3 bookings), authenticated inventory operations, appointment persistence, and concurrent conflict rejection; temporary test data was removed.
+
+### Vercel deployment
+
+1. Import the repository into Vercel.
+2. Keep the framework preset as **Vite** and use the repository root as the project root.
+3. Add the database variables from `.env.example` in Vercel Project Settings. Use a hosted MySQL-compatible database, not the local `.local-db` directory.
+4. Set `DB_SSL=true` and provide `DB_SSL_CA_BASE64` when the provider requires a CA certificate.
+5. Set strong production values for `ADMIN_PASSWORD`, `EMPLOYEE_PASSWORD`, and `SESSION_HOURS`; do not commit them.
+6. Deploy and verify `/api/health`, `/`, and `/inventory`.
+
+The Vercel function is [api/index.js](api/index.js). It runs the existing API contract inside the NestJS runtime adapter so the React client and staff workflows keep their current endpoints and cookie behavior.
 
 
 ### Visual refinement — November 4

@@ -18,7 +18,7 @@ Evidence rules for the next assistant:
 - This pass inspected source/configuration and the saved QA report, and performed read-only live database/API checks. It did not rerun browser QA, build or tests.
 - Earlier test results below are historical evidence, not certification of future changes.
 - Do not invent IDs, passwords, test results, services, customer reviews or deployment URLs. Retrieve actual account information only when needed and authorized.
-- Preserve unrelated work. Before this document edit, Git reported modified .env.example, .gitignore, README.md, server/db.js, server/index.js and untracked terraform/. Their authorship is not established here.
+- Preserve unrelated work. Before this document edit, Git reported modified .env.example, .gitignore, README.md, server/db.js and server/index.js. Their authorship is not established here.
 - Continue section 5, then update this document with actual changes, checks and remaining work before another handoff.
 
 ## 2. Database and runtime: freshly verified, do not revert

@@ -410,16 +410,20 @@ app.use((error, _request, response, next) => {
   response.status(500).json({ error: "The inventory service could not complete the request." });
 });
 
+export const ready = ensureAuthSchema();
+
 let server;
-ensureAuthSchema().then(() => {
-  server = app.listen(port, host, () => {
-    console.log(`Frederick Auto inventory API listening at http://${host}:${port}.`);
+if (!process.env.VERCEL) {
+  ready.then(() => {
+    server = app.listen(port, host, () => {
+      console.log(`Frederick Auto inventory API listening at http://${host}:${port}.`);
+    });
+  }).catch(async (error) => {
+    console.error(databaseStartupMessage(error));
+    await pool.end();
+    process.exitCode = 1;
   });
-}).catch(async (error) => {
-  console.error(databaseStartupMessage(error));
-  await pool.end();
-  process.exitCode = 1;
-});
+}
 
 async function shutdown(signal) {
   console.log(`${signal} received; closing inventory API.`);
@@ -436,5 +440,9 @@ async function shutdown(signal) {
   });
 }
 
-process.on("SIGINT", () => shutdown("SIGINT"));
-process.on("SIGTERM", () => shutdown("SIGTERM"));
+if (!process.env.VERCEL) {
+  process.on("SIGINT", () => shutdown("SIGINT"));
+  process.on("SIGTERM", () => shutdown("SIGTERM"));
+}
+
+export default app;
