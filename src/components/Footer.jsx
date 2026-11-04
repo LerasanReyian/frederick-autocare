@@ -1,6 +1,7 @@
+import PropTypes from 'prop-types'
 import { ArrowUpRight, MapPin } from 'lucide-react'
 
-function Footer() {
+function Footer({ onStaffLogin }) {
   return (
     <footer className="site-footer">
       <div className="footer-main">
@@ -16,7 +17,7 @@ function Footer() {
       <div className="footer-bottom">
         <span>© {new Date().getFullYear()} Frederick Car Accessories</span>
         <div className="flex items-center gap-5">
-          <a href="/inventory">Staff login</a>
+          <button type="button" className="footer-staff-link" onClick={onStaffLogin}>Staff login</button>
           <a href="mailto:frederickcaraccessories@gmail.com">Get in touch</a>
         </div>
       </div>
@@ -24,4 +25,5 @@ function Footer() {
   )
 }
 
+Footer.propTypes = { onStaffLogin: PropTypes.func.isRequired }
 export default Footer

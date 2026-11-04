@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import PropTypes from 'prop-types'
 import { ArrowRight, CalendarCheck, Check, Mail, MapPin, Phone, X } from 'lucide-react'
 import servicesData from '../data/servicesData.js'
+import { appointmentError, parseManilaAppointment } from '../../shared/appointments.js'
 
 function getManilaDateTimeInputValue(date = new Date()) {
   const parts = new Intl.DateTimeFormat('en-CA', {
@@ -14,12 +15,6 @@ function getManilaDateTimeInputValue(date = new Date()) {
     hourCycle: 'h23',
   }).formatToParts(date).reduce((values, part) => ({ ...values, [part.type]: part.value }), {})
   return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`
-}
-
-function parseManilaAppointment(value) {
-  return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value)
-    ? new Date(`${value}:00+08:00`)
-    : new Date(Number.NaN)
 }
 
 function BookingModal({ isOpen, onClose, service, onServiceChange }) {
@@ -75,15 +70,12 @@ function BookingModal({ isOpen, onClose, service, onServiceChange }) {
     const formData = new FormData(event.currentTarget)
     const nextErrors = {}
     const appointment = String(formData.get('appointment') || '')
-    const appointmentDate = parseManilaAppointment(appointment)
-    const appointmentParts = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(appointment)
-    const appointmentHour = appointmentParts ? Number(appointmentParts[4]) : Number.NaN
     if (!String(formData.get('name') || '').trim()) nextErrors.name = 'Enter your full name.'
     if (!/^09\d{2} ?\d{3} ?\d{4}$/.test(String(formData.get('phone') || '').trim())) nextErrors.phone = 'Use a Philippine mobile number like 0917 123 4567.'
     if (!String(formData.get('vehicle') || '').trim()) nextErrors.vehicle = 'Enter your vehicle make and model.'
     if (!service) nextErrors.service = 'Select a service.'
-    if (Number.isNaN(appointmentDate.getTime()) || appointmentDate <= new Date()) nextErrors.appointment = 'Choose a future appointment time.'
-    else if (appointmentDate.getUTCDay() === 0 || appointmentHour < 8 || appointmentHour >= 17) nextErrors.appointment = 'Choose Monday to Saturday, between 8:00 AM and 5:00 PM.'
+    const scheduleError = appointmentError(appointment)
+    if (scheduleError) nextErrors.appointment = scheduleError
     if (String(formData.get('notes') || '').length > 1000) nextErrors.notes = 'Keep notes within 1,000 characters.'
     setFieldErrors(nextErrors)
     if (Object.keys(nextErrors).length > 0) return
@@ -110,13 +102,13 @@ function BookingModal({ isOpen, onClose, service, onServiceChange }) {
       })
       const contentType = response.headers.get('content-type') || ''
       if (!contentType.includes('application/json')) {
-        throw new Error('The booking service returned an invalid response. Please restart the current backend server and try again.')
+        throw new Error('The booking service returned an invalid response. Please try again or call the shop.')
       }
       const result = await response.json()
       if (!response.ok) throw new Error(result.error || 'Unable to submit your booking request.')
       setStep('success')
     } catch (error) {
-      setSubmissionError(error instanceof Error ? error.message : 'Unable to submit your booking request.')
+      setSubmissionError(!navigator.onLine ? 'You are offline. Reconnect to submit your request, or call the shop. Your details are still here.' : error instanceof Error ? error.message : 'Unable to submit your booking request.')
     } finally {
       setIsSubmitting(false)
     }
@@ -232,7 +224,7 @@ function BookingModal({ isOpen, onClose, service, onServiceChange }) {
             <form className="booking-form" onSubmit={handleSubmit} noValidate>
               <label>
                 Customer full name
-                <input name="name" type="text" autoComplete="name" placeholder="e.g. Juan Dela Cruz" defaultValue={bookingDetails?.name ?? ''} aria-invalid={Boolean(fieldErrors.name)} aria-describedby={fieldErrors.name ? 'booking-name-error' : undefined} required />
+                <input name="name" type="text" maxLength="120" autoComplete="name" placeholder="e.g. Juan Dela Cruz" defaultValue={bookingDetails?.name ?? ''} aria-invalid={Boolean(fieldErrors.name)} aria-describedby={fieldErrors.name ? 'booking-name-error' : undefined} required />
                 {fieldErrors.name && <span id="booking-name-error" className="field-error">{fieldErrors.name}</span>}
               </label>
               <label>
@@ -254,7 +246,7 @@ function BookingModal({ isOpen, onClose, service, onServiceChange }) {
               </label>
               <label>
                 Vehicle unit make &amp; model
-                <input name="vehicle" type="text" placeholder="e.g. Toyota Vios 2022" defaultValue={bookingDetails?.vehicle ?? ''} aria-invalid={Boolean(fieldErrors.vehicle)} aria-describedby={fieldErrors.vehicle ? 'booking-vehicle-error' : undefined} required />
+                <input name="vehicle" type="text" maxLength="160" placeholder="e.g. Toyota Vios 2022" defaultValue={bookingDetails?.vehicle ?? ''} aria-invalid={Boolean(fieldErrors.vehicle)} aria-describedby={fieldErrors.vehicle ? 'booking-vehicle-error' : undefined} required />
                 {fieldErrors.vehicle && <span id="booking-vehicle-error" className="field-error">{fieldErrors.vehicle}</span>}
               </label>
               <label>

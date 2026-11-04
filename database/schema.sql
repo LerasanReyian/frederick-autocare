@@ -6,6 +6,7 @@ USE frederick_autocare;
 
 CREATE TABLE IF NOT EXISTS inventory_users (
   id CHAR(36) NOT NULL PRIMARY KEY,
+  staff_id VARCHAR(24) NULL UNIQUE,
   name VARCHAR(120) NOT NULL,
   email VARCHAR(190) NOT NULL,
   password_hash VARCHAR(255) NOT NULL,
@@ -93,3 +94,11 @@ VALUES
   ('00000000-0000-4000-8000-000000000010', 'Remote Car Alarm System', 'Security', 'SEC-ALRM-RMT', 9, 10, 2800.00, 'bg-red-100 text-red-700', 'A'),
   ('00000000-0000-4000-8000-000000000011', 'Universal Repair Parts Kit', 'Parts', 'PRT-REPR-UNI', 42, 15, 1450.00, 'bg-red-100 text-red-700', 'P'),
   ('00000000-0000-4000-8000-000000000012', 'Body Repair Compound', 'Car Care', 'CARE-BDY-500', 0, 8, 950.00, 'bg-emerald-100 text-emerald-700', 'B');
+
+CREATE TABLE IF NOT EXISTS inventory_entry_checks (
+  id CHAR(64) NOT NULL PRIMARY KEY,
+  user_id CHAR(36) NOT NULL,
+  expires_at DATETIME(6) NOT NULL,
+  CONSTRAINT fk_inventory_entry_user FOREIGN KEY (user_id) REFERENCES inventory_users(id) ON DELETE CASCADE,
+  INDEX idx_inventory_entry_expiry (expires_at)
+) ENGINE=InnoDB;

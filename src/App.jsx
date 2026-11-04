@@ -1,193 +1,112 @@
-import { useState } from 'react'
-import { ArrowDown, ArrowRight, MapPin, ShieldCheck, Sparkles } from 'lucide-react'
+import { lazy, Suspense, useCallback, useState } from 'react'
+import { ArrowUpRight, ArrowRight, MapPin, Phone, Check, Wrench, Sparkles, ShieldCheck } from 'lucide-react'
 import Header from './components/Header.jsx'
 import Footer from './components/Footer.jsx'
 import ServiceCatalog from './components/ServiceCatalog.jsx'
 import BookingModal from './components/BookingModal.jsx'
-import CarVideoScrubber from './components/CarVideoScrubber.jsx'
-import InventoryPortal from './components/InventoryPortal.tsx'
+import ScrollFilm from './components/ScrollFilm.jsx'
+import StaffAccessModal from './components/StaffAccessModal.jsx'
+import './staff.css'
+import InstallApp from './components/InstallApp.jsx'
 import useBookingState from './hooks/useBookingState.js'
+import './storefront.css'
+
+const InventoryPortal = lazy(() => import('./components/InventoryPortal.tsx'))
 
 function Storefront() {
   const { isBookingOpen, openBooking, closeBooking } = useBookingState()
+  const [staffAccessOpen, setStaffAccessOpen] = useState(false)
+  const closeStaffAccess = useCallback(() => setStaffAccessOpen(false), [])
   const [selectedService, setSelectedService] = useState('')
-  const [isCalibrating, setIsCalibrating] = useState(false)
-
-  function handleBook(service = '') {
-    setSelectedService(service)
-    openBooking()
-  }
+  function handleBook(service = '') { setSelectedService(service); openBooking() }
 
   return (
-    <div className="site-shell min-h-screen bg-[#f8fafc] text-slate-900">
-      <Header
-        onBook={() => handleBook()}
-      />
-
-      <main>
-        <section className="hero-section" id="home">
-          <div className="hero-glow" aria-hidden="true" />
-          <div className="hero-inner">
-            <div className="hero-copy">
-              <div className="eyebrow eyebrow-light">
-                <span className="eyebrow-dot" />
-                Davao City&apos;s local car accessories shop
-              </div>
-              <h1>
-                Make every drive
-                <br />
-                <span>feel like yours.</span>
-              </h1>
-              <p className="hero-tagline">
-                We make your car look and feel better!
-              </p>
-              <p className="hero-description">
-                Thoughtful upgrades, quality accessories, and friendly service
-                for the car you love to drive.
-              </p>
-              <div className="hero-actions">
-                <button className="button button-primary" onClick={() => handleBook()}>
-                  Book a service <ArrowRight size={17} />
-                </button>
-                <a className="button button-outline" href="#services">
-                  Explore services
-                </a>
-              </div>
-              <div className="hero-location">
-                <MapPin size={16} />
-                <span>Cabaguio Avenue, Davao City</span>
-              </div>
-            </div>
-
-            <div className="hero-visual">
-              <div className="visual-label">
-                <span className="visual-label-icon"><Sparkles size={15} /></span>
-                <span>Make it yours</span>
-              </div>
-              <CarVideoScrubber
-                onInquire={handleBook}
-                isCalibrating={isCalibrating}
-                onCalibratingChange={setIsCalibrating}
-              />
-              <div className="visual-caption">
-                <span className="caption-line" />
-                <span>Built around your ride</span>
-              </div>
+    <div className="storefront" id="home" data-dialog-open={isBookingOpen || staffAccessOpen}>
+      <a className="skip-link" href="#main">Skip to content</a>
+      <ScrollFilm />
+      <div className="storefront-content" inert={isBookingOpen || staffAccessOpen}>
+      <Header onBook={() => handleBook()} onStaffLogin={() => setStaffAccessOpen(true)} />
+      <main id="main">
+        <section className="drive-hero" aria-labelledby="hero-title">
+          <div className="hero-wordmark" aria-hidden="true">FREDERICK</div>
+          <div className="hero-topline"><span><i /> YOUR LOCAL AUTO SHOP · DAVAO CITY</span><span>CARE. CUSTOMIZE. DRIVE.</span></div>
+          <div className="drive-hero-copy">
+            <p className="chapter-label">FREDERICK / CAR ACCESSORIES & AUTO CARE</p>
+            <h1 id="hero-title">EVERY DETAIL.<br /><em>EVERY DRIVE.</em></h1>
+            <p>Care for the details.<br />Make every drive feel like yours.</p>
+            <div className="drive-actions">
+              <button className="button button-primary" onClick={() => handleBook()}>Book your upgrade <ArrowUpRight size={18} /></button>
+              <a className="hero-service-link" href="#services">Explore services <ArrowRight size={17} /></a>
             </div>
           </div>
-          <a className="scroll-cue" href="#services" aria-label="Scroll to services">
-            <ArrowDown size={16} />
-          </a>
+          <div className="hero-footline"><a href="#contact"><MapPin size={14} /> CABAGUIO AVENUE, DAVAO</a><span>Auto care. With a personal touch.</span><span>EST. IN YOUR EVERYDAY.</span></div>
         </section>
 
-        <section className="trust-strip" aria-label="Shop highlights">
-          <div className="trust-item">
-            <span className="trust-icon"><MapPin size={19} /></span>
-            <span><strong>Locally owned</strong><small>Proudly serving Davao City</small></span>
+        <section className="film-interlude" aria-label="The Frederick approach">
+          <div><span className="chapter-label">THE FREDERICK EDIT</span><h2>LOOK GOOD.<br /><em>FEEL DIFFERENT.</em></h2></div>
+          <p>For the car you love.<br />And every road ahead.</p>
+        </section>
+
+        <section className="drive-section" id="services" aria-labelledby="services-title">
+          <div className="content-panel service-panel">
+            <div className="panel-topline"><span className="chapter-label">01 / THE RIGHT DETAILS</span><Wrench size={19} /></div>
+            <h2 id="services-title">THE DETAILS<br /><em>MAKE THE DRIVE.</em></h2>
+            <p className="section-intro">A cleaner finish. A more comfortable cabin. A smarter drive. Find your next upgrade in our service collection.</p>
+            <ServiceCatalog onBook={handleBook} />
+            <div className="personal-help"><span>Not sure where to start?<small>Tell us about your vehicle. We’ll help you choose.</small></span><button onClick={() => handleBook()} aria-label="Ask us about your vehicle"><ArrowUpRight size={23} /></button></div>
           </div>
-          <span className="trust-divider" aria-hidden="true" />
-          <div className="trust-item">
-            <span className="trust-icon"><ShieldCheck size={19} /></span>
-            <span><strong>Careful installation</strong><small>Attention in every detail</small></span>
-          </div>
-          <span className="trust-divider" aria-hidden="true" />
-          <div className="trust-item">
-            <span className="trust-icon"><Sparkles size={19} /></span>
-            <span><strong>Made for your ride</strong><small>Accessories to fit your style</small></span>
+          <aside className="film-caption"><span>THE DETAILS MAKE THE DRIVE.</span><span>Frederick / Davao City</span></aside>
+        </section>
+
+        <section className="drive-section story-section" id="about" aria-labelledby="about-title">
+          <div className="content-panel story-panel">
+            <div className="panel-topline"><span className="chapter-label">02 / YOUR NEIGHBORHOOD SHOP</span><span className="small-wordmark">F.</span></div>
+            <h2 id="about-title">YOUR CAR.<br /><em>OUR KIND OF CARE.</em></h2>
+            <p className="section-intro">Your car is part of your everyday. We’re here to help you make it feel more like you.</p>
+            <p>At Frederick Car Accessories, thoughtful upgrades meet friendly, local service. Visit our Cabaguio Avenue shop, share what you have in mind, and explore options that suit your vehicle.</p>
+            <div className="shop-values">
+              <div><MapPin size={20} /><span>Rooted in Davao<small>Your local shop on Cabaguio Avenue.</small></span></div>
+              <div><Sparkles size={20} /><span>Made for your ride<small>Accessories, comfort, and everyday care.</small></span></div>
+              <div><ShieldCheck size={20} /><span>Talk it through first<small>Confirm fitment, availability, and pricing with us.</small></span></div>
+            </div>
+            <div className="owner-signature"><span>Frederick Adorable</span><small>PROPRIETOR / FREDERICK CAR ACCESSORIES</small></div>
           </div>
         </section>
 
-        <section className="services-section section-wrap" id="services">
-          <div className="section-heading">
-            <div>
-              <div className="eyebrow"><span className="eyebrow-dot" /> What we do</div>
-              <h2>Small upgrades.<br /><span>Big difference.</span></h2>
-            </div>
-            <p>
-              From the first impression to the everyday details, find the right
-              finishing touch for your vehicle.
-            </p>
-          </div>
-          <ServiceCatalog onBook={handleBook} />
-        </section>
-
-        <section className="about-section" id="about">
-          <div className="about-inner">
-            <div className="about-mark" aria-hidden="true">
-              <span>F</span>
-              <span className="about-mark-line" />
-              <span className="about-mark-caption">CAR ACCESSORIES</span>
-            </div>
-            <div className="about-copy">
-              <div className="eyebrow eyebrow-light">
-                <span className="eyebrow-dot" /> Your neighborhood auto shop
-              </div>
-              <h2>Good cars deserve<br /><span>the right details.</span></h2>
-              <p>
-                Frederick Car Accessories is here to help you make more of
-                every drive. Stop by, tell us what you have in mind, and
-                we&apos;ll help you find the right way to make your car feel
-                more like yours.
-              </p>
-              <div className="about-owner">
-                <span className="owner-initial">F</span>
-                <span><strong>Frederick Adorable</strong><small>Proprietor</small></span>
-              </div>
-            </div>
+        <section className="drive-section" id="process" aria-labelledby="process-title">
+          <div className="content-panel process-panel">
+            <div className="panel-topline"><span className="chapter-label">03 / FROM IDEA TO UPGRADE</span><ArrowUpRight size={21} /></div>
+            <h2 id="process-title">FROM YOUR IDEA.<br /><em>TO YOUR DRIVE.</em></h2>
+            <ol className="visit-steps">
+              <li><span>01</span><div><h3>Find your finishing touch</h3><p>Explore our services or ask us what works for your car.</p></div></li>
+              <li><span>02</span><div><h3>Request a shop visit</h3><p>Choose a preferred day and time. We’ll review your request and confirm with you.</p></div></li>
+              <li><span>03</span><div><h3>Let’s make it yours</h3><p>Visit the shop to discuss the fit, finish, and final estimate before work begins.</p></div></li>
+            </ol>
+            <button className="button button-primary" onClick={() => handleBook()}>Plan your visit <ArrowUpRight size={18} /></button>
+            <p className="process-note"><Check size={14} /> Requests are confirmed directly by the shop.</p>
           </div>
         </section>
 
-        <section className="visit-section section-wrap" id="contact">
-          <div className="visit-heading">
-            <div className="eyebrow"><span className="eyebrow-dot" /> Come say hello</div>
-            <h2>Your next upgrade<br /><span>starts here.</span></h2>
-            <p>Drop by the shop or get in touch. We&apos;re happy to help you get started.</p>
-          </div>
-          <div className="visit-card">
-            <div className="visit-card-head">
-              <span className="visit-icon"><MapPin size={21} /></span>
-              <span className="open-badge"><span /> Find our shop</span>
-            </div>
-            <h3>Frederick Car Accessories</h3>
-            <p>Door 5 #99 Cabaguio Avenue,<br />Brgy. Gov Paciano Bangoy,<br />Davao City</p>
-            <a
-              className="text-link"
-              href="https://maps.google.com/?q=Door+5+99+Cabaguio+Avenue+Davao+City"
-              target="_blank"
-              rel="noreferrer"
-            >
-              Get directions <ArrowRight size={16} />
-            </a>
-            <div className="visit-card-rule" />
-            <div className="visit-phone-label">Call us</div>
-            <a className="phone-link" href="tel:+639663072418">0966 307 2418</a>
-            <a className="phone-link" href="tel:+639277961795">0927 796 1795</a>
-            <a className="email-link" href="mailto:frederickcaraccessories@gmail.com">
-              frederickcaraccessories@gmail.com
-            </a>
+        <section className="drive-section contact-section" id="contact" aria-labelledby="contact-title">
+          <div className="content-panel contact-panel">
+            <div className="panel-topline"><span className="chapter-label">04 / SEE YOU AT THE SHOP</span><MapPin size={20} /></div>
+            <h2 id="contact-title">LET’S MAKE<br /><em>IT YOURS.</em></h2>
+            <p className="section-intro">Come with an idea. Leave with a plan for your car.</p>
+            <div className="contact-address"><h3>Frederick Car Accessories</h3><p>Door 5 #99 Cabaguio Avenue<br />Brgy. Gov Paciano Bangoy, Davao City</p><a href="https://maps.google.com/?q=Door+5+99+Cabaguio+Avenue+Davao+City" target="_blank" rel="noreferrer">Get directions <ArrowUpRight size={16} /></a></div>
+            <div className="contact-lines"><span>LET’S TALK ABOUT YOUR RIDE</span><a href="tel:+639663072418">0966 307 2418 <Phone size={21} /></a><a href="tel:+639277961795">0927 796 1795 <Phone size={21} /></a><a className="contact-email" href="mailto:frederickcaraccessories@gmail.com">frederickcaraccessories@gmail.com <ArrowUpRight size={16} /></a></div>
+            <div className="contact-bottom"><button className="button button-primary" onClick={() => handleBook()}>Book a service <ArrowRight size={17} /></button><InstallApp /></div>
           </div>
         </section>
       </main>
-
-      <Footer />
-      {isBookingOpen && (
-        <BookingModal
-          isOpen={isBookingOpen}
-          onClose={closeBooking}
-          service={selectedService}
-          onServiceChange={setSelectedService}
-        />
-      )}
+      <Footer onStaffLogin={() => setStaffAccessOpen(true)} />
+      </div>
+      {staffAccessOpen && <StaffAccessModal onClose={closeStaffAccess} />}
+      {isBookingOpen && <BookingModal isOpen={isBookingOpen} onClose={closeBooking} service={selectedService} onServiceChange={setSelectedService} />}
     </div>
   )
 }
-
-function App() {
-  if (window.location.pathname.replace(/\/+$/, '') === '/inventory') {
-    return <InventoryPortal />
-  }
-
-  return <Storefront />
+export default function App() {
+  return window.location.pathname.replace(/\/+$/, '') === '/inventory'
+    ? <Suspense fallback={<div className="portal-loading">Opening staff portal…</div>}><InventoryPortal /></Suspense>
+    : <Storefront />
 }
-
-export default App

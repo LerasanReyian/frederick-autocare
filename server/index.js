@@ -3,7 +3,11 @@ import express from "express";
 import { Buffer } from "node:buffer";
 import { randomBytes, randomUUID, scryptSync, timingSafeEqual } from "node:crypto";
 import process from "node:process";
+import { fileURLToPath } from "node:url";
+import { appointmentError, parseManilaAppointment } from "../shared/appointments.js";
 import pool from "./db.js";
+import { installStaffAccess, newStaffId, cookieValue, entryCookieHeader } from "./staff-access.js";
+import { initializeDatabase, databaseStartupMessage } from "./initialize-db.js";
 
 const app = express();
 const port = Number(process.env.API_PORT || 3002);
@@ -24,6 +28,7 @@ app.use((request, response, next) => {
   next();
 });
 app.use(express.json({ limit: "32kb" }));
+app.use("/api", (_request, response, next) => { response.setHeader("Cache-Control", "no-store"); next(); });
 
 const sessionCookie = "frederick_inventory_session";
 const sessionHours = Number(process.env.SESSION_HOURS || 8);
@@ -42,8 +47,6 @@ const approvedServices = new Set([
   "Parts repair", "Seat cover", "Car carpet", "Glass tint", "Dash cam",
   "Stereo", "Horn", "Car alarm", "Body repair",
 ]);
-const shopOpeningHour = 8;
-const shopClosingHour = 17;
 
 function hashPassword(password) {
   const salt = randomBytes(16).toString("hex");
@@ -61,55 +64,7 @@ function verifyPassword(password, storedHash) {
 }
 
 async function ensureAuthSchema() {
-  await pool.query(`CREATE TABLE IF NOT EXISTS inventory_users (
-    id CHAR(36) NOT NULL PRIMARY KEY,
-    name VARCHAR(120) NOT NULL,
-    email VARCHAR(190) NOT NULL,
-    password_hash VARCHAR(255) NOT NULL,
-    role ENUM('admin', 'employee') NOT NULL,
-    active TINYINT(1) NOT NULL DEFAULT 1,
-    created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
-    updated_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
-    CONSTRAINT uq_inventory_users_email UNIQUE (email)
-  ) ENGINE=InnoDB`);
-  await pool.query(`CREATE TABLE IF NOT EXISTS inventory_sessions (
-    id CHAR(64) NOT NULL PRIMARY KEY,
-    user_id CHAR(36) NOT NULL,
-    expires_at DATETIME(6) NOT NULL,
-    created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
-    CONSTRAINT fk_inventory_sessions_user FOREIGN KEY (user_id) REFERENCES inventory_users(id) ON DELETE CASCADE,
-    INDEX idx_inventory_sessions_expiry (expires_at)
-  ) ENGINE=InnoDB`);
-  await pool.query(`CREATE TABLE IF NOT EXISTS inventory_account_requests (
-    id CHAR(36) NOT NULL PRIMARY KEY,
-    name VARCHAR(120) NOT NULL,
-    email VARCHAR(190) NOT NULL,
-    password_hash VARCHAR(255) NOT NULL,
-    requested_role ENUM('employee') NOT NULL DEFAULT 'employee',
-    status ENUM('pending', 'approved', 'rejected') NOT NULL DEFAULT 'pending',
-    reviewed_by CHAR(36) NULL,
-    reviewed_at DATETIME(6) NULL,
-    created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
-    CONSTRAINT uq_inventory_account_requests_email UNIQUE (email),
-    CONSTRAINT fk_inventory_account_requests_reviewer FOREIGN KEY (reviewed_by) REFERENCES inventory_users(id) ON DELETE SET NULL
-  ) ENGINE=InnoDB`);
-  await pool.query(`CREATE TABLE IF NOT EXISTS booking_requests (
-    id CHAR(36) NOT NULL PRIMARY KEY,
-    customer_name VARCHAR(120) NOT NULL,
-    phone VARCHAR(32) NOT NULL,
-    vehicle VARCHAR(160) NOT NULL,
-    service VARCHAR(160) NOT NULL,
-    appointment_at DATETIME NOT NULL,
-    notes VARCHAR(1000) NULL,
-    response_message VARCHAR(500) NULL,
-    status ENUM('pending', 'confirmed', 'completed', 'cancelled') NOT NULL DEFAULT 'pending',
-    reviewed_by CHAR(36) NULL,
-    reviewed_at DATETIME(6) NULL,
-    created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
-    CONSTRAINT fk_booking_requests_reviewer FOREIGN KEY (reviewed_by) REFERENCES inventory_users(id) ON DELETE SET NULL,
-    INDEX idx_booking_requests_status_date (status, appointment_at)
-  ) ENGINE=InnoDB`);
-  await pool.query("ALTER TABLE booking_requests ADD COLUMN IF NOT EXISTS response_message VARCHAR(500) NULL");
+  await initializeDatabase();
 
   for (const account of defaultAccounts) {
     const [rows] = await pool.execute("SELECT id FROM inventory_users WHERE email = ?", [account.email]);
@@ -120,19 +75,19 @@ async function ensureAuthSchema() {
       );
     }
   }
+  const [staff] = await pool.query("SELECT id,role FROM inventory_users WHERE staff_id IS NULL");
+  for (const user of staff) await pool.execute("UPDATE inventory_users SET staff_id=? WHERE id=? AND staff_id IS NULL", [newStaffId(user.role), user.id]);
 }
 
 function getSessionId(request) {
-  const cookies = request.headers.cookie?.split(";").map((item) => item.trim()) ?? [];
-  const session = cookies.find((item) => item.startsWith(`${sessionCookie}=`));
-  return session ? decodeURIComponent(session.slice(sessionCookie.length + 1)) : "";
+  return cookieValue(request, sessionCookie);
 }
 
 const authenticated = asyncRoute(async (request, response, next) => {
   const sessionId = getSessionId(request);
   if (!sessionId) return response.status(401).json({ error: "Please sign in to access inventory." });
   const [rows] = await pool.execute(
-    `SELECT u.id, u.name, u.email, u.role
+    `SELECT u.id, u.name, u.email, u.role, u.staff_id AS staffId
      FROM inventory_sessions s
      JOIN inventory_users u ON u.id = s.user_id
      WHERE s.id = ? AND s.expires_at > CURRENT_TIMESTAMP(6) AND u.active = 1`,
@@ -205,43 +160,52 @@ app.post("/api/bookings", asyncRoute(async (request, response) => {
   const service = typeof request.body?.service === "string" ? request.body.service.trim() : "";
   const appointment = typeof request.body?.appointment === "string" ? request.body.appointment : "";
   const notes = typeof request.body?.notes === "string" ? request.body.notes.trim() : "";
-  const appointmentMatch = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(appointment);
-  const appointmentDate = appointmentMatch ? new Date(`${appointment}:00+08:00`) : new Date(NaN);
-  const appointmentHour = appointmentMatch ? Number(appointmentMatch[4]) : NaN;
-  const appointmentDay = appointmentMatch ? new Date(`${appointmentMatch[1]}-${appointmentMatch[2]}-${appointmentMatch[3]}T12:00:00+08:00`).getDay() : NaN;
-  if (!customerName || customerName.length > 120 || !/^09\d{2} ?\d{3} ?\d{4}$/.test(phone) || !vehicle || vehicle.length > 160 || !approvedServices.has(service) || !appointment || !appointmentMatch || Number.isNaN(appointmentDate.getTime()) || appointmentDate <= new Date() || appointmentDay === 0 || appointmentHour < shopOpeningHour || appointmentHour >= shopClosingHour || (appointmentHour === shopClosingHour - 1 && Number(appointmentMatch[5]) > 0) || notes.length > 1000) {
-    const isOutsideSchedule = appointmentMatch && (appointmentDay === 0 || appointmentHour < shopOpeningHour || appointmentHour >= shopClosingHour || (appointmentHour === shopClosingHour - 1 && Number(appointmentMatch[5]) > 0));
-    if (isOutsideSchedule) return response.status(400).json({ error: "Appointments are available Monday to Saturday, from 8:00 AM to 5:00 PM." });
+  const scheduleError = appointmentError(appointment);
+  if (scheduleError) return response.status(400).json({ error: scheduleError });
+  const appointmentDate = parseManilaAppointment(appointment);
+  if (!customerName || customerName.length > 120 || !/^09\d{2} ?\d{3} ?\d{4}$/.test(phone) || !vehicle || vehicle.length > 160 || !approvedServices.has(service) || notes.length > 1000) {
     return response.status(400).json({ error: "Enter valid customer, contact, vehicle, service, and future appointment details." });
   }
-  const [conflicts] = await pool.execute("SELECT id FROM booking_requests WHERE appointment_at = ? AND status IN ('pending', 'confirmed') LIMIT 1", [appointmentDate]);
-  if (conflicts.length > 0) {
-    return response.status(409).json({ error: "That appointment time is already requested. Please choose another time." });
+  const connection = await pool.getConnection();
+  const lockName = `frederick-booking:${appointment}`;
+  let locked = false;
+  try {
+    const [[lock]] = await connection.execute('SELECT GET_LOCK(?, 5) AS acquired', [lockName]);
+    locked = lock.acquired === 1;
+    if (!locked) return response.status(503).json({ error: 'Booking is busy. Please try again.' });
+    const [conflicts] = await connection.execute("SELECT id FROM booking_requests WHERE appointment_at = ? AND status IN ('pending', 'confirmed') LIMIT 1", [appointmentDate]);
+    if (conflicts.length > 0) return response.status(409).json({ error: "That appointment time is already requested. Please choose another time." });
+    const id = randomUUID();
+    await connection.execute(
+      "INSERT INTO booking_requests (id, customer_name, phone, vehicle, service, appointment_at, notes) VALUES (?, ?, ?, ?, ?, ?, ?)",
+      [id, customerName, phone, vehicle, service, appointmentDate, notes || null],
+    );
+    response.status(201).json({ id, status: "pending" });
+  } finally {
+    try { if (locked) await connection.execute('SELECT RELEASE_LOCK(?)', [lockName]); }
+    finally { connection.release(); }
   }
-  const id = randomUUID();
-  await pool.execute(
-    "INSERT INTO booking_requests (id, customer_name, phone, vehicle, service, appointment_at, notes) VALUES (?, ?, ?, ?, ?, ?, ?)",
-    [id, customerName, phone, vehicle, service, appointmentDate, notes || null],
-  );
-  response.status(201).json({ id, status: "pending" });
 }));
 
-app.post("/api/auth/login", asyncRoute(async (request, response) => {
+const requireStaffEntry = installStaffAccess(app, pool);
+
+app.post("/api/auth/login", requireStaffEntry, asyncRoute(async (request, response) => {
   const email = typeof request.body?.email === "string" ? request.body.email.trim().toLowerCase() : "";
   const password = typeof request.body?.password === "string" ? request.body.password : "";
   if (!email || !password) {
     return response.status(400).json({ error: "Enter your email and password." });
   }
-  const [rows] = await pool.execute("SELECT id, name, email, password_hash, role FROM inventory_users WHERE email = ? AND active = 1", [email]);
+  const [rows] = await pool.execute("SELECT id, name, email, password_hash, role, staff_id AS staffId FROM inventory_users WHERE email = ? AND active = 1", [email]);
   const user = rows[0];
-  if (!user || !verifyPassword(password, user.password_hash)) {
+  if (!user || user.id !== request.staffUserId || !verifyPassword(password, user.password_hash)) {
     return response.status(401).json({ error: "Invalid email or password." });
   }
   const sessionId = randomBytes(32).toString("hex");
   const expiresAt = new Date(Date.now() + sessionHours * 60 * 60 * 1000);
   await pool.execute("INSERT INTO inventory_sessions (id, user_id, expires_at) VALUES (?, ?, ?)", [sessionId, user.id, expiresAt]);
-  response.setHeader("Set-Cookie", `${sessionCookie}=${encodeURIComponent(sessionId)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${Math.floor(sessionHours * 3600)}`);
-  response.json({ user: { name: user.name, email: user.email, role: user.role } });
+  await pool.execute("DELETE FROM inventory_entry_checks WHERE id=?", [cookieValue(request, 'frederick_staff_entry')]);
+  response.setHeader("Set-Cookie", [`${sessionCookie}=${encodeURIComponent(sessionId)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${Math.floor(sessionHours * 3600)}${request.secure ? '; Secure' : ''}`, entryCookieHeader('', request, 0)]);
+  response.json({ user: { name: user.name, email: user.email, role: user.role, staffId: user.staffId } });
 }));
 
 app.post("/api/auth/register", asyncRoute(async (request, response) => {
@@ -262,6 +226,12 @@ app.post("/api/auth/register", asyncRoute(async (request, response) => {
     [randomUUID(), name, email, hashPassword(password)],
   );
   response.status(202).json({ message: "Account request submitted. An Admin must approve it before you can sign in." });
+}));
+
+app.get('/api/auth/staff', authenticated, requireRole('admin'), asyncRoute(async (_request, response) => {
+  const [staff] = await pool.query("SELECT name,email,role,staff_id AS staffId FROM inventory_users WHERE active=1 ORDER BY role,name");
+  response.setHeader('Cache-Control', 'no-store');
+  response.json(staff);
 }));
 
 app.get("/api/auth/requests", authenticated, requireRole("admin"), asyncRoute(async (_request, response) => {
@@ -300,7 +270,7 @@ app.post("/api/auth/requests/:id/approve", authenticated, requireRole("admin"), 
     const [requests] = await connection.execute("SELECT * FROM inventory_account_requests WHERE id = ? AND status = 'pending' FOR UPDATE", [request.params.id]);
     if (requests.length === 0) return response.status(404).json({ error: "Pending account request not found." });
     const accountRequest = requests[0];
-    await connection.execute("INSERT INTO inventory_users (id, name, email, password_hash, role) VALUES (?, ?, ?, ?, 'employee')", [accountRequest.id, accountRequest.name, accountRequest.email, accountRequest.password_hash]);
+    await connection.execute("INSERT INTO inventory_users (id, name, email, password_hash, role, staff_id) VALUES (?, ?, ?, ?, 'employee', ?)", [accountRequest.id, accountRequest.name, accountRequest.email, accountRequest.password_hash, newStaffId("employee")]);
     await connection.execute("UPDATE inventory_account_requests SET status = 'approved', reviewed_by = ?, reviewed_at = CURRENT_TIMESTAMP(6) WHERE id = ?", [request.user.id, accountRequest.id]);
     await connection.commit();
     response.json({ approved: true });
@@ -410,6 +380,16 @@ app.post("/api/products/bulk-delete", authenticated, requireRole("admin"), async
   response.json({ deleted: writeResult.affectedRows });
 }));
 
+app.use('/api', (_request, response) => response.status(404).json({ error: 'API route not found.' }));
+// The built PWA and API share an origin, including staff-session cookies.
+const distDirectory = fileURLToPath(new URL('../dist/', import.meta.url));
+app.use(express.static(distDirectory, {
+  setHeaders(response, path) {
+    if (path.endsWith('sw.js') || path.endsWith('index.html')) response.setHeader('Cache-Control', 'no-cache');
+  },
+}));
+app.get(['/', '/inventory'], (_request, response) => response.sendFile(`${distDirectory}/index.html`));
+
 app.use((error, _request, response, next) => {
   if (response.headersSent) return next(error);
   if (error?.code === "ER_DUP_ENTRY") {
@@ -428,8 +408,9 @@ ensureAuthSchema().then(() => {
   server = app.listen(port, host, () => {
     console.log(`Frederick Auto inventory API listening at http://${host}:${port}.`);
   });
-}).catch((error) => {
-  console.error("Unable to initialize inventory authentication tables.", error);
+}).catch(async (error) => {
+  console.error(databaseStartupMessage(error));
+  await pool.end();
   process.exitCode = 1;
 });
 

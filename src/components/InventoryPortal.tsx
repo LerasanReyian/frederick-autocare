@@ -1,3 +1,6 @@
+import StaffEntryLayout from "./StaffEntryLayout.jsx";
+import { StaffAccessForm } from "./StaffAccessModal.jsx";
+import "../staff.css";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 type IconName =
@@ -70,6 +73,7 @@ type Product = {
 };
 
 type Session = {
+  staffId?: string;
   name: string;
   email: string;
   role: "admin" | "employee";
@@ -109,8 +113,8 @@ const bookingStatusLabels: Record<Booking["status"], string> = {
   cancelled: "Cancelled",
 };
 
-function LoginView({ onLogin }: { onLogin: (session: Session) => void }) {
-  const [registering, setRegistering] = useState(false);
+function LoginView({ onLogin, onResetEntry, idVerified, initialRegistering = false }: { onLogin: (session: Session) => void; onResetEntry: () => void; idVerified: boolean; initialRegistering?: boolean }) {
+  const [registering, setRegistering] = useState(initialRegistering);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -158,72 +162,24 @@ function LoginView({ onLogin }: { onLogin: (session: Session) => void }) {
 
   }
 
-  return (
-    <div className="grid min-h-screen bg-white lg:grid-cols-[1.08fr_0.92fr]">
-      <section className="relative hidden overflow-hidden bg-zinc-950 p-12 text-white lg:flex lg:flex-col lg:justify-between xl:p-16">
-        <div className="absolute -right-24 top-1/3 h-24 w-[34rem] -rotate-12 bg-red-600"></div>
-        <div className="absolute -right-40 top-[44%] h-8 w-[34rem] -rotate-12 bg-white"></div>
-        <div className="absolute -bottom-28 -left-20 size-80 rounded-full border-[3rem] border-red-600/20"></div>
-        <div className="relative flex items-center gap-3">
-          <div className="flex size-11 items-center justify-center bg-red-600 text-white"><Icon name="box" className="size-6" /></div>
-          <div>
-            <p className="text-xl font-black uppercase tracking-tight">Frederick Auto</p>
-            <p className="text-[0.65rem] font-bold uppercase tracking-[0.24em] text-zinc-500">Accessories & services</p>
-          </div>
-        </div>
-        <div className="relative max-w-xl">
-          <p className="mb-5 text-xs font-black uppercase tracking-[0.3em] text-red-500">Inventory control center</p>
-          <h1 className="text-5xl font-black uppercase leading-[0.95] tracking-[-0.05em] xl:text-7xl">Built to keep<br /><span className="text-red-600">business moving.</span></h1>
-          <p className="mt-7 max-w-md text-base leading-relaxed text-zinc-400">Manage every accessory, part, and service item behind the Frederick Auto promotional website.</p>
-        </div>
-        <div className="relative flex gap-10 border-t border-zinc-800 pt-6 text-xs font-bold uppercase tracking-widest text-zinc-500">
-          <span>Stock tracking</span><span>Team workflow</span><span>Local access</span>
-        </div>
-      </section>
-
-      <main className="flex items-center justify-center p-6 sm:p-10">
-        <div className="w-full max-w-md">
-          <div className="mb-10 flex items-center gap-3 lg:hidden">
-            <div className="flex size-10 items-center justify-center bg-red-600 text-white"><Icon name="box" /></div>
-            <p className="text-lg font-black uppercase">Frederick Auto</p>
-          </div>
-          <p className="mb-3 text-xs font-black uppercase tracking-[0.25em] text-red-600">Inventory access</p>
-          <h2 className="text-4xl font-black uppercase tracking-tight">{registering ? "Request access" : "Welcome back"}</h2>
-          <p className="mt-3 text-sm leading-relaxed text-zinc-500">{registering ? "Submit an employee account request. An Admin must approve it before you can sign in." : "Open the inventory dashboard, backed by the connected MariaDB database."}</p>
-
-          <form className="mt-7 space-y-4" onSubmit={registering ? submitRegistration : submit}>
-            {registering && <div><label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-zinc-500" htmlFor="register-name">Full name</label><input id="register-name" type="text" required value={name} onChange={(event) => setName(event.target.value)} className="w-full rounded-xl border border-zinc-200 px-3.5 py-3 text-sm outline-none focus:border-red-600" placeholder="Employee name" /></div>}
-            <div>
-              <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-zinc-500" htmlFor="account-email">Email address</label>
-              <input id="account-email" type="email" required autoComplete="username" value={email} onChange={(event) => setEmail(event.target.value)} className="w-full rounded-xl border border-zinc-200 px-3.5 py-3 text-sm outline-none focus:border-red-600" placeholder="you@example.com" />
-            </div>
-            <div>
-              <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-zinc-500" htmlFor="account-password">Password</label>
-              <div className="relative">
-                <input id="account-password" type={showPassword ? "text" : "password"} minLength={8} required autoComplete={registering ? "new-password" : "current-password"} value={password} onChange={(event) => setPassword(event.target.value)} className="w-full rounded-xl border border-zinc-200 px-3.5 py-3 pr-12 text-sm outline-none focus:border-red-600" placeholder={registering ? "At least 8 characters" : "Enter your password"} />
-                <button type="button" onClick={() => setShowPassword((visible) => !visible)} className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-zinc-400 transition hover:text-zinc-700" aria-label={showPassword ? "Hide password" : "Show password"} title={showPassword ? "Hide password" : "Show password"}>
-                  <Icon name={showPassword ? "eye-off" : "eye"} className="size-5" />
-                </button>
-              </div>
-            </div>
-            {error && <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700" role="alert">{error}</p>}
-            {success && <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700" role="status">{success}</p>}
-            <button type="submit" disabled={submitting} className="flex w-full items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-3.5 text-sm font-black uppercase tracking-wider text-white shadow-lg shadow-red-200 transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60">
-              {submitting ? "Please wait..." : registering ? "Submit account request" : "Sign in to inventory"}<Icon name="chevron" className="size-4" />
-            </button>
-          </form>
-          <button type="button" onClick={() => { setRegistering((value) => !value); setError(""); setSuccess(""); }} className="mt-4 w-full text-center text-xs font-bold uppercase tracking-wider text-red-600 hover:text-red-700">
-            {registering ? "Already have an account? Sign in" : "Need access? Request an employee account"}
-          </button>
-
-          <div className="mt-7 flex items-center justify-between border-t border-zinc-100 pt-5 text-xs text-zinc-400">
-            <span>MySQL inventory</span>
-            <a href="/" className="font-bold text-zinc-700 hover:text-red-600">Back to website</a>
-          </div>
-        </div>
-      </main>
-    </div>
-  );
+  if (success && !idVerified) return <StaffEntryLayout><h2>Request received.</h2><p className="staff-intro">{success}</p><button className="staff-submit" onClick={onResetEntry}>Return to staff ID check</button></StaffEntryLayout>;
+  return <StaffEntryLayout>
+    <p className="staff-step">{registering ? "JOIN THE TEAM" : "STEP 2 OF 2 · ID VERIFIED"}</p>
+    <h2>{registering ? "Request access." : "Welcome back."}</h2>
+    <p className="staff-intro">{registering ? "Your administrator will review your request and issue your staff ID." : "Sign in to manage stock, appointments, and your daily workflow."}</p>
+    <form className="staff-id-form" onSubmit={registering ? submitRegistration : submit}>
+      {registering && <><label htmlFor="register-name">Full name</label><input id="register-name" required maxLength={120} value={name} onChange={event => setName(event.target.value)} autoComplete="name" /></>}
+      <label htmlFor="account-email">Email address</label><input id="account-email" type="email" required maxLength={190} autoComplete="username" value={email} onChange={event => setEmail(event.target.value)} placeholder="you@example.com" />
+      <label htmlFor="account-password">Password</label>
+      <div className="staff-password"><input id="account-password" type={showPassword ? "text" : "password"} minLength={registering ? 8 : 1} maxLength={200} required autoComplete={registering ? "new-password" : "current-password"} value={password} onChange={event => setPassword(event.target.value)} placeholder="Enter your password" /><button type="button" onClick={() => setShowPassword(value => !value)} aria-label={showPassword ? "Hide password" : "Show password"}><Icon name={showPassword ? "eye-off" : "eye"} /></button></div>
+      {error && <p className="staff-error" role="alert">{error}</p>}
+      {success && <p role="status">{success}</p>}
+      <button className="staff-submit" type="submit" disabled={submitting}>{submitting ? "Please wait…" : registering ? "Submit account request" : "Sign in to inventory"}<Icon name="chevron" className="size-4" /></button>
+    </form>
+    <button className="staff-request-link" type="button" onClick={() => { if (registering && !idVerified) { onResetEntry(); return; } setRegistering(value => !value); setError(""); setSuccess(""); }}>{registering ? "Back to sign in" : "Need access? Request an employee account"}</button>
+    <button className="staff-request-link" type="button" onClick={onResetEntry}>Use a different staff ID</button>
+    <a className="staff-home-link" href="/">Back to the public website →</a>
+  </StaffEntryLayout>;
 }
 
 async function inventoryRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
@@ -245,7 +201,7 @@ async function inventoryRequest<T>(path: string, options: RequestInit = {}): Pro
     }
     result = await response.json();
   } catch {
-    throw new Error(`The inventory API at ${baseUrl || "the Vite proxy"} returned an invalid response. Restart the current backend server.`);
+    throw new Error("The staff service is unavailable. Please try again shortly.");
   }
   if (!response.ok) throw new Error(result.error || `Inventory request failed (${response.status}).`);
   return result;
@@ -280,6 +236,7 @@ function InventoryDashboard({ session, onLogout }: { session: Session; onLogout:
   const [actionMenuId, setActionMenuId] = useState<string | null>(null);
   const [activeSection, setActiveSection] = useState("Inventory");
   const [page, setPage] = useState(0);
+  const [teamIds, setTeamIds] = useState<Array<{ name: string; role: string; staffId: string }>>([]);
   const [accountRequests, setAccountRequests] = useState<AccountRequest[]>([]);
   const [requestsError, setRequestsError] = useState("");
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -327,7 +284,7 @@ function InventoryDashboard({ session, onLogout }: { session: Session; onLogout:
         if (active) setProducts(items);
       })
       .catch((error: unknown) => {
-        if (active) setApiError(error instanceof Error ? error.message : "Unable to load inventory from MySQL.");
+        if (active) setApiError(error instanceof Error ? error.message : "Unable to load inventory. Please try again.");
       })
       .finally(() => {
         if (active) setLoadingProducts(false);
@@ -337,6 +294,7 @@ function InventoryDashboard({ session, onLogout }: { session: Session; onLogout:
 
   useEffect(() => {
     if (!isAdmin) return;
+    inventoryRequest<Array<{ name: string; role: string; staffId: string }>>("/auth/staff").then(setTeamIds).catch(() => {});
     inventoryRequest<AccountRequest[]>("/auth/requests")
       .then(setAccountRequests)
       .catch((error) => setRequestsError(error instanceof Error ? error.message : "Unable to load account requests."));
@@ -372,6 +330,7 @@ function InventoryDashboard({ session, onLogout }: { session: Session; onLogout:
     try {
       await inventoryRequest(`/auth/requests/${request.id}/${action}`, { method: "POST" });
       setAccountRequests((items) => items.filter((item) => item.id !== request.id));
+      if (action === "approve") inventoryRequest<Array<{ name: string; role: string; staffId: string }>>("/auth/staff").then(setTeamIds);
     } catch (error) {
       setRequestsError(error instanceof Error ? error.message : "Unable to review account request.");
     }
@@ -456,7 +415,7 @@ function InventoryDashboard({ session, onLogout }: { session: Session; onLogout:
       setEditingProduct(null);
       setShowAdd(false);
     } catch (error) {
-      setFormError(error instanceof Error ? error.message : "Unable to save product to MySQL.");
+      setFormError(error instanceof Error ? error.message : "Unable to save this product. Please try again.");
     }
   }
 
@@ -568,7 +527,7 @@ function InventoryDashboard({ session, onLogout }: { session: Session; onLogout:
   const categories = [...new Set(products.map((product) => product.category))].sort();
 
   return (
-    <div className="min-h-screen bg-zinc-50 text-zinc-900">
+    <div className="staff-dashboard min-h-screen bg-zinc-50 text-zinc-900">
       <div className="flex min-h-screen">
         {mobileNav && (
           <button
@@ -611,8 +570,8 @@ function InventoryDashboard({ session, onLogout }: { session: Session; onLogout:
 
           <div className="mt-auto">
             <div className="mb-4 border border-zinc-800 bg-zinc-900 p-4 text-white">
-              <p className="text-[0.65rem] font-black uppercase tracking-[0.2em] text-red-500">MariaDB database</p>
-              <p className="mt-2 text-xs leading-relaxed text-zinc-400">Inventory records are stored in the connected database. The public catalog is separate.</p>
+              <p className="text-[0.65rem] font-black uppercase tracking-[0.2em] text-red-500">Team workspace</p>
+              <p className="mt-2 text-xs leading-relaxed text-zinc-400">Keep stock organized and customer visits on track.</p>
               <a href="/" className="mt-3 inline-flex text-xs font-bold text-white hover:text-red-400">View public website <span className="ml-1" aria-hidden="true">→</span></a>
             </div>
             <div className="flex items-center gap-3 border-t border-zinc-800 pt-4">
@@ -649,7 +608,7 @@ function InventoryDashboard({ session, onLogout }: { session: Session; onLogout:
             {exportError && <p className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800" role="alert">{exportError}</p>}
             <div className="mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-end">
               <div>
-                <p className="mb-2 text-xs font-black uppercase tracking-[0.24em] text-red-600">MariaDB inventory / Shared database</p>
+                <p className="mb-2 text-xs font-black uppercase tracking-[0.24em] text-red-600">Frederick Auto / Staff workspace</p>
                 <h1 className="text-3xl font-black uppercase tracking-tight md:text-4xl">{activeSection === "Overview" ? "Inventory overview" : activeSection === "Inventory" ? "Car accessories inventory" : activeSection}</h1>
                 <p className="mt-2 text-sm text-zinc-500">Track products, parts, and shop supplies in one place.</p>
               </div>
@@ -737,6 +696,7 @@ function InventoryDashboard({ session, onLogout }: { session: Session; onLogout:
 
             {activeSection === "Account requests" && isAdmin && (
               <section className="border border-zinc-200 bg-white p-6 shadow-sm">
+                <h2 className="text-xl font-bold">Team access IDs</h2><p className="mt-2 text-sm text-zinc-600">Share each ID only with its assigned staff member. Their password is still required.</p><div className="my-5 space-y-3">{teamIds.map(member => <div key={member.staffId} className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-zinc-50 p-3"><span>{member.name} · {member.role}</span><code className="text-sm font-bold">{member.staffId}</code></div>)}</div>
                 <p className="text-xs font-black uppercase tracking-[0.2em] text-red-600">Admin approval</p>
                 <h2 className="mt-2 text-xl font-bold">Employee account requests</h2>
                 <p className="mt-2 text-sm text-zinc-500">Approve requests to create employee accounts that can sign in and restock inventory.</p>
@@ -937,32 +897,25 @@ function InventoryDashboard({ session, onLogout }: { session: Session; onLogout:
 function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [checkingSession, setCheckingSession] = useState(true);
-
-  function login(nextSession: Session) {
-    setSession(nextSession);
-  }
-
+  const [entryVerified, setEntryVerified] = useState(false);
+  const [requestAccess, setRequestAccess] = useState(() => new URLSearchParams(window.location.search).has("request"));
+  const [logoutError, setLogoutError] = useState("");
   useEffect(() => {
-    inventoryRequest<{ user: Session }>("/auth/me")
-      .then((result) => setSession(result.user))
-      .catch(() => setSession(null))
-      .finally(() => setCheckingSession(false));
+    inventoryRequest<{ user: Session }>("/auth/me").then(result => setSession(result.user)).catch(async () => {
+      try { const result = await inventoryRequest<{ verified: boolean }>("/auth/entry"); setEntryVerified(result.verified); } catch { setEntryVerified(false); }
+    }).finally(() => setCheckingSession(false));
   }, []);
-
+  async function resetEntry() {
+    try { await inventoryRequest("/auth/entry", { method: "DELETE" }); } catch { /* The backend always revalidates the proof. */ }
+    setEntryVerified(false); setRequestAccess(false); window.history.replaceState({}, "", "/inventory");
+  }
   async function logout() {
-    try {
-      await inventoryRequest<{ signedOut: boolean }>("/auth/logout", { method: "POST" });
-    } catch (error) {
-      console.error("Unable to sign out from the inventory API.", error);
-    }
-    setSession(null);
+    try { await inventoryRequest("/auth/logout", { method: "POST" }); setSession(null); setEntryVerified(false); setRequestAccess(false); setLogoutError(""); }
+    catch { setLogoutError("Could not sign out. Check your connection and try again."); }
   }
-
-  if (checkingSession) {
-    return <div className="flex min-h-screen items-center justify-center bg-zinc-950 text-sm font-bold uppercase tracking-wider text-zinc-400">Checking inventory session...</div>;
-  }
-  if (!session) return <LoginView onLogin={login} />;
-  return <InventoryDashboard session={session} onLogout={logout} />;
+  if (checkingSession) return <div className="portal-loading" role="status">Opening the staff workspace…</div>;
+  if (!session && !entryVerified && !requestAccess) return <StaffEntryLayout><StaffAccessForm onVerified={() => setEntryVerified(true)} /><button type="button" className="staff-request-link" onClick={() => setRequestAccess(true)}>New employee? Request an account</button><a href="/" className="staff-home-link">Back to the public website →</a></StaffEntryLayout>;
+  if (!session) return <LoginView onLogin={setSession} onResetEntry={resetEntry} idVerified={entryVerified} initialRegistering={requestAccess} />;
+  return <>{logoutError && <p className="staff-logout-error" role="alert">{logoutError}</p>}<InventoryDashboard session={session} onLogout={logout} /></>;
 }
-
 export default App;

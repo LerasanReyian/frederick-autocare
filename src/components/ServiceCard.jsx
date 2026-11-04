@@ -8,7 +8,7 @@ function ServiceCard({ service, index, onBook }) {
     <article className="service-card">
       <div className="service-card-top">
         <span className="service-icon"><Icon size={21} strokeWidth={1.8} /></span>
-        <span className="service-number">0{index}</span>
+        <span className="service-number">{String(index).padStart(2, '0')}</span>
       </div>
       <span className="service-category">{service.category}</span>
       <h3>{service.title}</h3>

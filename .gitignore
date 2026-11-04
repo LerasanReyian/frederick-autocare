@@ -25,3 +25,11 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Private recovered local database
+.local-db/
+
+.local-db-restored/
+
+.local-db-backup-*/
+.qa/
