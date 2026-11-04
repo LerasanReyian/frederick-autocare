@@ -13,6 +13,10 @@ export function StaffAccessForm({ onVerified }) {
     setBusy(true)
     try {
       const response = await fetch(`${import.meta.env.VITE_API_BASE_URL ?? ''}/api/auth/entry`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ staffId }) })
+      const contentType = response.headers.get('content-type') || ''
+      if (!contentType.includes('application/json')) {
+        throw new Error('The staff service is not available on this deployment. Start the Azure API app or configure the API URL, then try again.')
+      }
       const result = await response.json()
       if (!response.ok) throw new Error(result.error || 'Unable to verify this staff ID.')
       onVerified()

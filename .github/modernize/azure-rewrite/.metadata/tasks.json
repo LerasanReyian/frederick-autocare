@@ -1,0 +1,118 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Tasks template for the Frederick AutoCare Azure modernization plan.",
+  "tasks": [
+    {
+      "type": "setupBaseline",
+      "id": "001-setup-baseline",
+      "description": "Capture the current storefront and inventory behavior before the rewrite.",
+      "reason": "The existing behavior must remain verifiable while the backend is replaced.",
+      "requirements": "Snapshot the source and record test cases for public booking, staff entry verification, login, sessions, inventory, bookings, account requests, and logout.",
+      "snapshotFolder": ".",
+      "successCriteria": {
+        "passBuild": "true",
+        "generateNewUnitTests": "false",
+        "passUnitTests": "true"
+      }
+    },
+    {
+      "type": "infrastructure",
+      "id": "002-provision-azure-infrastructure",
+      "description": "Create the Azure environment required by the production application.",
+      "reason": "The deployed application needs reachable compute, database, networking, and configuration resources.",
+      "requirements": "Generate Bicep for resource group frederick-autocare-rg in Southeast Asia, Azure Container Apps for the backend, Azure App Service for the frontend, Azure Database for MySQL Flexible Server, required logging and secret configuration, and least-privilege access. Do not provision until the Azure subscription ID is supplied.",
+      "environmentConfiguration": [
+        "subscriptionId: pending",
+        "resourceGroup: frederick-autocare-rg",
+        "environment: production",
+        "region: Southeast Asia"
+      ],
+      "type": "infrastructure",
+      "iacType": "bicep",
+      "provision": true,
+      "skills": [
+        {
+          "name": "infrastructure-bicep-generation",
+          "location": "builtin"
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "type": "transform",
+      "id": "003-rewrite-backend-as-nestjs",
+      "description": "Rewrite the existing Express-compatible API as a fully modular NestJS backend.",
+      "reason": "The current NestJS layer is only an adapter; a full rewrite is required for the requested Azure architecture.",
+      "requirements": "Preserve health, booking, staff entry, authentication, sessions, inventory, restocking, deletion, account approval/rejection, and booking-status behavior. Introduce clear NestJS modules, controllers, services, guards, DTO validation, centralized error handling, secure session and cookie behavior, MySQL persistence, health checks, and production configuration without exposing secrets.",
+      "skills": [
+        {
+          "name": "nestjs-backend-modernization",
+          "location": "builtin"
+        }
+      ],
+      "successCriteria": {
+        "passBuild": "true",
+        "generateNewUnitTests": "true",
+        "passUnitTests": "true"
+      },
+      "dependencies": []
+    },
+    {
+      "type": "integrationTest",
+      "id": "004-integrationTest",
+      "description": "Build integration tests for migrated Azure services and run post-migration verification",
+      "reason": "Real Azure resources must be verified before production deployment.",
+      "requirements": "Run the frozen baseline scenarios against the provisioned Azure Container Apps backend, Azure App Service frontend, and Azure MySQL Flexible Server. Verify startup, health, CORS or same-origin behavior, database connectivity, staff entry, login, sessions, bookings, inventory, account requests, and logout.",
+      "dependencies": [
+        "001-setup-baseline",
+        "002-provision-azure-infrastructure",
+        "003-rewrite-backend-as-nestjs"
+      ]
+    },
+    {
+      "type": "security",
+      "id": "005-security-cve-remediation",
+      "description": "Scan the migrated application and dependencies for security vulnerabilities and remediate findings.",
+      "reason": "The rewritten and deployed system must meet a production security baseline.",
+      "requirements": "Scan npm dependencies, container dependencies, authentication and session handling, input validation, CORS, cookies, database access, secrets, and Azure configuration. Fix actionable CVEs and security defects without weakening authorization or exposing credentials.",
+      "successCriteria": {
+        "passBuild": "true",
+        "generateNewUnitTests": "true",
+        "passUnitTests": "true"
+      },
+      "dependencies": [
+        "004-integrationTest"
+      ]
+    },
+    {
+      "type": "deployment",
+      "id": "006-deploy-to-azure",
+      "description": "Deploy the rewritten backend and frontend to the provisioned Azure environment.",
+      "reason": "The application must be available on Azure using the validated architecture.",
+      "requirements": "Deploy from GitHub Actions after build, test, and security checks pass. Deploy the NestJS backend to Azure Container Apps and the React/Vite frontend to Azure App Service. Configure production environment variables, database TLS, managed identity or secret references, health checks, logs, custom routing, and rollback-safe deployment settings. Keep the local XAMPP configuration available only for development. Do not commit Azure credentials or database secrets.",
+      "targetAzureService": "Azure Container Apps and Azure App Service",
+      "resourceStatus": "Create and use newly provisioned resources",
+      "deploymentTool": "bicep",
+      "skills": [
+        {
+          "name": "azcli-containerapp-deploy",
+          "location": "builtin"
+        },
+        {
+          "name": "azcli-appservice-deploy",
+          "location": "builtin"
+        }
+      ],
+      "dependencies": [
+        "005-security-cve-remediation"
+      ]
+    }
+  ],
+  "metadata": {
+    "planName": "frederick-autocare-azure-rewrite",
+    "projectName": "Frederick Car Accessories",
+    "language": "javascript/typescript",
+    "createdAt": "2026-11-04T14:18:00Z",
+    "version": "1.0"
+  }
+}

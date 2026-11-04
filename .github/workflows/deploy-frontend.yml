@@ -1,0 +1,139 @@
+name: Build and deploy full system to Azure
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  NODE_VERSION: "22.x"
+  AZURE_WEBAPP_NAME: ${{ vars.AZURE_WEBAPP_NAME }}
+  AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+  # Frontend and API share the same origin on App Service.
+  VITE_API_BASE_URL: ""
+
+concurrency:
+  group: azure-production
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+      - name: Lint source
+        run: npm run lint
+
+      - name: Build frontend and PWA
+        run: npm run build
+        env:
+          VITE_API_BASE_URL: ${{ env.VITE_API_BASE_URL }}
+
+      - name: Prepare allowlisted runtime package
+        run: npm run package:azure
+
+      - name: Install Linux production dependencies
+        working-directory: .azure-package
+        run: npm ci --omit=dev
+
+      - name: Create deployment archive
+        working-directory: .azure-package
+        run: zip -qr ../azure-deploy.zip .
+
+      - name: Save deployable artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: azure-runtime
+          path: azure-deploy.zip
+          retention-days: 3
+
+  deploy:
+    needs: build
+    # Build/test remains usable before Azure student activation is complete.
+    if: ${{ vars.AZURE_DEPLOY_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Download tested runtime package
+        uses: actions/download-artifact@v4
+        with:
+          name: azure-runtime
+
+      - name: Check Azure deployment configuration
+        id: azure-config
+        shell: bash
+        run: |
+          missing=()
+
+          [[ -n "${AZURE_WEBAPP_NAME}" ]] || missing+=("AZURE_WEBAPP_NAME variable")
+          [[ -n "${AZURE_RESOURCE_GROUP}" ]] || missing+=("AZURE_RESOURCE_GROUP variable")
+          [[ -n "${{ secrets.AZURE_CLIENT_ID }}" ]] || missing+=("AZURE_CLIENT_ID secret")
+          [[ -n "${{ secrets.AZURE_TENANT_ID }}" ]] || missing+=("AZURE_TENANT_ID secret")
+          [[ -n "${{ secrets.AZURE_SUBSCRIPTION_ID }}" ]] || missing+=("AZURE_SUBSCRIPTION_ID secret")
+
+          if [[ ${#missing[@]} -gt 0 ]]; then
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Skipping Azure deployment because required configuration is missing: ${missing[*]}"
+            exit 0
+          fi
+
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to Azure
+        if: steps.azure-config.outputs.ready == 'true'
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Configure App Service
+        if: steps.azure-config.outputs.ready == 'true'
+        uses: azure/cli@v2
+        with:
+          inlineScript: |
+            az webapp config appsettings set \
+              --resource-group "$AZURE_RESOURCE_GROUP" \
+              --name "$AZURE_WEBAPP_NAME" \
+              --settings SCM_DO_BUILD_DURING_DEPLOYMENT=false NODE_ENV=production API_HOST=0.0.0.0
+            az webapp config set \
+              --resource-group "$AZURE_RESOURCE_GROUP" \
+              --name "$AZURE_WEBAPP_NAME" \
+              --linux-fx-version "NODE|22-lts" \
+              --startup-file "npm start"
+
+      - name: Deploy website and API together
+        if: steps.azure-config.outputs.ready == 'true'
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ env.AZURE_WEBAPP_NAME }}
+          package: azure-deploy.zip
+
+      - name: Verify public site, staff page and database health
+        if: steps.azure-config.outputs.ready == 'true'
+        shell: bash
+        run: |
+          host=$(az webapp show --resource-group "$AZURE_RESOURCE_GROUP" --name "$AZURE_WEBAPP_NAME" --query defaultHostName --output tsv)
+          test -n "$host"
+          curl --fail --silent --show-error --retry 12 --retry-all-errors --retry-delay 10 "https://$host/api/health" | python3 -c 'import json,sys; result=json.load(sys.stdin); assert result.get("status")=="ok" and result.get("database")=="connected", result'
+          curl --fail --silent --show-error "https://$host/" --output /dev/null
+          curl --fail --silent --show-error "https://$host/inventory" --output /dev/null
+          echo "Published site: https://$host" >> "$GITHUB_STEP_SUMMARY"

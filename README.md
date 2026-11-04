@@ -50,6 +50,21 @@ Open the local URL printed by Vite (typically `http://localhost:5173`).
 Vite proxies `/api` requests to the local Express API on port `3002`.
 For a separate frontend/API origin, set `VITE_API_BASE_URL` when building the frontend and set `CORS_ORIGIN` on the API to the exact frontend origin. Do not put database credentials in any `VITE_*` variable.
 
+### Deploy with GitHub Actions to Azure
+
+See [AZURE_DEPLOYMENT.md](./AZURE_DEPLOYMENT.md) for the current activation,
+resource, data-migration, environment and GitHub OIDC instructions.
+
+The current target is one Linux App Service serving the built website and API
+with `npm start`, plus Azure Database for MySQL Flexible Server. The frontend
+uses same-origin `/api` requests. The old split Container Apps workflow is now
+manual and disabled unless explicitly enabled.
+
+The workflow builds, tests, lints and packages the runtime. Deployment remains
+skipped until the repository variable `AZURE_DEPLOY_ENABLED=true` is configured
+after Azure resources, database settings and credentials are ready. The student
+subscription has not yet been activated; Azure publication is not complete.
+
 
 ### Available scripts
 
