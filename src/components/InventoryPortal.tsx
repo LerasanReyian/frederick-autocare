@@ -18,7 +18,6 @@ type IconName =
   | "help"
   | "menu"
   | "more"
-  | "overview"
   | "plus"
   | "refresh"
   | "logout"
@@ -45,7 +44,6 @@ function Icon({ name, className = "size-5" }: { name: IconName; className?: stri
     grid: <><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /></>,
     menu: <path d="M4 7h16M4 12h16M4 17h16" />,
     more: <><circle cx="5" cy="12" r="1" fill="currentColor" /><circle cx="12" cy="12" r="1" fill="currentColor" /><circle cx="19" cy="12" r="1" fill="currentColor" /></>,
-    overview: <><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /></>,
     plus: <path d="M12 5v14M5 12h14" />,
     refresh: <><path d="M20 11a8 8 0 1 0 1 4" /><path d="M20 4v7h-7" /></>,
     logout: <><path d="M10 17l5-5-5-5M15 12H3" /><path d="M12 3h6a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-6" /></>,
@@ -263,12 +261,11 @@ function InventoryDashboard({ session, onLogout }: { session: Session; onLogout:
   const [category, setCategory] = useState("All items");
   const [stockFilter, setStockFilter] = useState("All stock");
   const [mobileNav, setMobileNav] = useState(false);
+  const [desktopNav, setDesktopNav] = useState(() => window.matchMedia('(min-width: 1024px)').matches);
   const [showAdd, setShowAdd] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [formError, setFormError] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [compactRows, setCompactRows] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [actionMenuId, setActionMenuId] = useState<string | null>(null);
   const [activeSection, setActiveSection] = useState("Inventory");
@@ -284,7 +281,35 @@ function InventoryDashboard({ session, onLogout }: { session: Session; onLogout:
   const [exportMessage, setExportMessage] = useState("");
   const [exportError, setExportError] = useState("");
   const productNameInput = useRef<HTMLInputElement>(null);
+  const productForm = useRef<HTMLFormElement>(null);
+  const productTrigger = useRef<HTMLElement | null>(null);
+  const navigationPanel = useRef<HTMLElement>(null);
+  const navigationToggle = useRef<HTMLButtonElement>(null);
+  const filterContainer = useRef<HTMLDivElement>(null);
+  const filterButton = useRef<HTMLButtonElement>(null);
+  const filterPanel = useRef<HTMLDivElement>(null);
   const pageSize = 8;
+  const activeFilterCount = Number(category !== "All items") + Number(stockFilter !== "All stock");
+
+  useEffect(() => {
+    if (!filtersOpen) return;
+    filterPanel.current?.querySelector("select")?.focus();
+    function outside(event: PointerEvent) {
+      if (!filterContainer.current?.contains(event.target as Node)) setFiltersOpen(false);
+    }
+    function escape(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setFiltersOpen(false);
+        filterButton.current?.focus();
+      }
+    }
+    document.addEventListener("pointerdown", outside);
+    document.addEventListener("keydown", escape);
+    return () => {
+      document.removeEventListener("pointerdown", outside);
+      document.removeEventListener("keydown", escape);
+    };
+  }, [filtersOpen]);
 
   const filtered = useMemo(() => products.filter((product) => {
     const matchesSearch = `${product.name} ${product.sku} ${product.category}`.toLowerCase().includes(query.trim().toLowerCase());
@@ -392,7 +417,12 @@ function InventoryDashboard({ session, onLogout }: { session: Session; onLogout:
     if (!showAdd) return undefined;
 
     function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") closeProductForm();
+      if (event.key === "Escape") { event.preventDefault(); closeProductForm(); }
+      if (event.key !== 'Tab') return;
+      const controls = Array.from(productForm.current?.querySelectorAll<HTMLElement>('button:not([disabled]), input, select, summary') || []).filter(element => element.getClientRects().length);
+      const first = controls[0]; const last = controls.at(-1);
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
     }
 
     document.body.classList.add("modal-open");
@@ -401,19 +431,39 @@ function InventoryDashboard({ session, onLogout }: { session: Session; onLogout:
     return () => {
       document.body.classList.remove("modal-open");
       document.removeEventListener("keydown", handleKeyDown);
+      if (productTrigger.current?.isConnected) productTrigger.current.focus({ preventScroll: true });
     };
   }, [showAdd]);
 
   useEffect(() => {
-    if (!mobileNav) return undefined;
+    const desktop = window.matchMedia('(min-width: 1024px)');
+    function changed() { setDesktopNav(desktop.matches); setMobileNav(false); }
+    desktop.addEventListener('change', changed);
+    return () => desktop.removeEventListener('change', changed);
+  }, []);
 
+  useEffect(() => {
+    if (!mobileNav || desktopNav) return undefined;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const panel = navigationPanel.current;
+    const controls = () => Array.from(panel?.querySelectorAll<HTMLElement>('a[href], button:not([disabled])') || []).filter(element => element.getClientRects().length);
+    controls()[0]?.focus();
     function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") setMobileNav(false);
+      if (event.key === "Escape") { event.preventDefault(); setMobileNav(false); }
+      if (event.key !== 'Tab') return;
+      const items = controls();
+      const first = items[0]; const last = items.at(-1);
+      if (event.shiftKey && (document.activeElement === first || !panel?.contains(document.activeElement))) { event.preventDefault(); last?.focus(); }
+      else if (!event.shiftKey && (document.activeElement === last || !panel?.contains(document.activeElement))) { event.preventDefault(); first?.focus(); }
     }
-
     document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [mobileNav]);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", handleKeyDown);
+      navigationToggle.current?.focus({ preventScroll: true });
+    };
+  }, [mobileNav, desktopNav]);
 
   async function saveProduct(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -457,12 +507,14 @@ function InventoryDashboard({ session, onLogout }: { session: Session; onLogout:
   }
 
   function openAddProduct() {
+    productTrigger.current = document.activeElement as HTMLElement;
     setEditingProduct(null);
     setFormError("");
     setShowAdd(true);
   }
 
   function openEditProduct(product: Product) {
+    productTrigger.current = document.activeElement as HTMLElement;
     setEditingProduct(product);
     setFormError("");
     setShowAdd(true);
@@ -574,7 +626,7 @@ function InventoryDashboard({ session, onLogout }: { session: Session; onLogout:
             onClick={() => setMobileNav(false)}
           />
         )}
-        <aside className={`fixed inset-y-0 left-0 z-40 flex w-64 flex-col border-r border-zinc-800 bg-zinc-950 p-5 text-white transition-transform lg:translate-x-0 ${mobileNav ? "translate-x-0" : "-translate-x-full"}`}>
+        <aside ref={navigationPanel} id="staff-navigation" aria-label="Staff navigation" role={!desktopNav && mobileNav ? 'dialog' : undefined} aria-modal={!desktopNav && mobileNav ? true : undefined} inert={showAdd || (!desktopNav && !mobileNav)} className={`staff-sidebar fixed inset-y-0 left-0 z-40 flex w-64 flex-col border-r border-zinc-800 bg-zinc-950 p-5 text-white transition-transform lg:translate-x-0 ${mobileNav ? "translate-x-0" : "-translate-x-full"}`}>
           <div className="mb-9 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="flex size-9 items-center justify-center bg-red-600 text-white"><Icon name="box" className="size-5" /></div>
@@ -586,7 +638,6 @@ function InventoryDashboard({ session, onLogout }: { session: Session; onLogout:
           <nav className="space-y-1" aria-label="Inventory navigation">
             <p className="mb-3 px-3 pt-1 text-[0.65rem] font-black uppercase tracking-[0.2em] text-zinc-600">Workspace</p>
             {[
-              { name: "Overview", icon: "overview" as IconName },
               { name: "Inventory", icon: "database" as IconName },
               { name: "Bookings", icon: "orders" as IconName },
               ...(isAdmin ? [{ name: "Account requests", icon: "settings" as IconName }] : []),
@@ -595,7 +646,7 @@ function InventoryDashboard({ session, onLogout }: { session: Session; onLogout:
                 key={item.name}
                 type="button"
                 aria-current={activeSection === item.name ? "page" : undefined}
-                onClick={() => { setActiveSection(item.name); setMobileNav(false); }}
+                onClick={() => { setActiveSection(item.name); setMobileNav(false); window.scrollTo({ top: 0, behavior: 'instant' }); }}
                 className={`flex w-full items-center gap-3 border-l-2 px-3 py-3 text-left text-sm font-bold transition-colors ${activeSection === item.name ? "border-red-600 bg-red-600/10 text-white" : "border-transparent text-zinc-500 hover:bg-zinc-900 hover:text-zinc-200"}`}
               >
                 <Icon name={item.icon} className="size-5" />
@@ -622,10 +673,10 @@ function InventoryDashboard({ session, onLogout }: { session: Session; onLogout:
           </div>
         </aside>
 
-        <main className="min-w-0 flex-1 lg:ml-64">
-          <header className="flex h-20 items-center justify-between border-b border-zinc-200 bg-white px-5 md:px-8 lg:px-10">
+        <main inert={showAdd || (!desktopNav && mobileNav)} className="min-w-0 flex-1 lg:ml-64">
+          <header className="staff-toolbar flex min-h-20 flex-wrap items-center justify-between gap-3 border-b border-zinc-200 bg-white px-5 py-3 sm:h-20 sm:flex-nowrap sm:py-0 md:px-8 lg:px-10">
             <div className="flex items-center gap-3">
-              <button className="rounded-xl border border-zinc-200 bg-white p-2.5 text-zinc-600 lg:hidden" onClick={() => setMobileNav(true)} aria-label="Open navigation" aria-expanded={mobileNav}><Icon name="menu" /></button>
+              <button ref={navigationToggle} className="rounded-xl border border-zinc-200 bg-white p-2.5 text-zinc-600 lg:hidden" onClick={() => setMobileNav(true)} aria-label="Open navigation" aria-controls="staff-navigation" aria-expanded={mobileNav}><Icon name="menu" /></button>
               <div>
                 <p className="text-xs font-medium text-zinc-400">Catalog / <span className="text-zinc-700">{activeSection}</span></p>
                 <p className="mt-0.5 text-sm font-semibold md:hidden">{activeSection}</p>
@@ -636,7 +687,7 @@ function InventoryDashboard({ session, onLogout }: { session: Session; onLogout:
                 <Icon name="grid" className="size-4" /><span className="hidden sm:inline">View storefront</span>
               </a>
               <Button variant="secondary" onClick={() => exportInventory()} aria-label="Export inventory"><Icon name="download" className="size-4" /><span className="hidden sm:inline">Export</span></Button>
-              {canAddProducts && <Button onClick={openAddProduct}><Icon name="plus" className="size-4" /><span className="hidden sm:inline">Add product</span><span className="sm:hidden">Add</span></Button>}
+              {canAddProducts && <Button onClick={openAddProduct} aria-label="Add product"><Icon name="plus" className="size-4" /><span className="hidden sm:inline">Add product</span><span className="sm:hidden">Add</span></Button>}
             </div>
           </header>
 
@@ -646,7 +697,7 @@ function InventoryDashboard({ session, onLogout }: { session: Session; onLogout:
             <div className="mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-end">
               <div>
                 <p className="mb-2 text-xs font-black uppercase tracking-[0.24em] text-red-600">Frederick Auto / Staff workspace</p>
-                <h1 className="text-3xl font-black uppercase tracking-tight md:text-4xl">{activeSection === "Overview" ? "Inventory overview" : activeSection === "Inventory" ? "Car accessories inventory" : activeSection}</h1>
+                <h1 className="text-3xl font-black uppercase tracking-tight md:text-4xl">{activeSection === "Inventory" ? "Car accessories inventory" : activeSection}</h1>
                 <p className="mt-2 text-sm text-zinc-500">Track products, parts, and shop supplies in one place.</p>
               </div>
               <p className={`rounded-full border bg-white px-3 py-1.5 text-xs font-medium ${apiError ? "border-rose-200 text-rose-600" : "border-zinc-200 text-zinc-500"}`}>
@@ -661,7 +712,7 @@ function InventoryDashboard({ session, onLogout }: { session: Session; onLogout:
               </div>
             )}
 
-            {!loadingProducts && !apiError && <section className="mb-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-label="Inventory summary">
+            {!loadingProducts && !apiError && activeSection === 'Inventory' && <section className="staff-summary mb-8 grid grid-cols-2 gap-3 xl:grid-cols-4" aria-label="Inventory summary">
               {[
                 { label: "Total products", value: products.length.toLocaleString(), icon: "box" as IconName, note: "Tracked catalog items", direction: "neutral" },
                 { label: "Inventory value", value: `₱${inventoryValue.toLocaleString()}`, icon: "database" as IconName, note: "Current stock value", direction: "neutral" },
@@ -750,7 +801,7 @@ function InventoryDashboard({ session, onLogout }: { session: Session; onLogout:
               </section>
             )}
 
-            {activeSection !== "Inventory" && activeSection !== "Overview" && activeSection !== "Account requests" && activeSection !== "Bookings" && (
+            {activeSection !== "Inventory" && activeSection !== "Account requests" && activeSection !== "Bookings" && (
               <section className="border border-zinc-200 bg-white p-8 shadow-sm">
                 <p className="text-xs font-black uppercase tracking-[0.2em] text-red-600">{activeSection}</p>
                 <h2 className="mt-2 text-xl font-bold">{activeSection} are not available yet</h2>
@@ -760,46 +811,40 @@ function InventoryDashboard({ session, onLogout }: { session: Session; onLogout:
             )}
 
             {activeSection === "Inventory" && (
-              <section className="overflow-hidden border border-zinc-200 bg-white shadow-sm shadow-zinc-200/30">
+              <section className="min-w-0 border border-zinc-200 bg-white shadow-sm shadow-zinc-200/30">
                 <div className="border-b-4 border-red-600 bg-zinc-950 p-5 text-white">
                   <div className="mb-5 flex items-start justify-between">
                     <div>
                       <h2 className="font-bold">Accessories and parts</h2>
                       <p className="mt-1 text-xs text-zinc-500">{filtered.length} products in this view</p>
                     </div>
-                    <div className="relative">
-                      <button type="button" onClick={() => setSettingsOpen((open) => !open)} className="rounded-lg p-2 text-zinc-400 hover:bg-zinc-800 hover:text-white" aria-label="Inventory display settings" aria-expanded={settingsOpen} title="Display settings"><Icon name="settings" /></button>
-                      {settingsOpen && <div className="absolute right-0 top-11 z-20 w-48 rounded-xl border border-zinc-200 bg-white p-3 text-zinc-800 shadow-xl"><label className="flex cursor-pointer items-center gap-2 text-xs font-semibold"><input type="checkbox" checked={compactRows} onChange={(event) => setCompactRows(event.target.checked)} /> Compact table rows</label></div>}
-                    </div>
                   </div>
-                  <div className="flex flex-col gap-3 xl:flex-row">
-                    <label className="relative min-w-48 flex-1">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                    <label className="relative min-w-0 flex-1">
                       <span className="sr-only">Search inventory</span>
                       <Icon name="search" className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-zinc-500" />
                       <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search accessories or SKU..." className="w-full rounded-lg border border-zinc-700 bg-zinc-900 py-2.5 pl-10 pr-4 text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-red-600" />
                     </label>
-                    <div className="flex min-w-0 flex-1 items-center gap-2">
-                      <div className="flex min-w-0 flex-1 gap-2 overflow-x-auto pb-1 xl:pb-0">
-                        {["All items", ...["Lighting", "Interior", "Electronics", "Car Care"].filter((item) => categories.includes(item))].map((item) => (
-                          <button key={item} type="button" aria-pressed={category === item} onClick={() => setCategory(item)} className={`whitespace-nowrap rounded-lg px-3.5 py-2.5 text-xs font-bold transition ${category === item ? "bg-red-600 text-white" : "border border-zinc-700 text-zinc-400 hover:border-zinc-500 hover:text-white"}`}>{item}</button>
-                        ))}
-                      </div>
-                      <div className="relative">
-                        <button type="button" onClick={() => setFiltersOpen((open) => !open)} className="inline-flex items-center gap-2 whitespace-nowrap rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-zinc-800 hover:bg-zinc-100" aria-expanded={filtersOpen}><Icon name="filter" className="size-4" />Filters</button>
-                        {filtersOpen && <div className="absolute right-0 top-12 z-20 grid w-64 gap-3 rounded-xl border border-zinc-200 bg-white p-4 text-zinc-800 shadow-xl">
-                          <label className="grid gap-1.5 text-xs font-semibold">Category
-                            <select value={category} onChange={(event) => setCategory(event.target.value)} className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm font-normal">
+                    <div ref={filterContainer} className="relative shrink-0 self-end sm:self-auto">
+                        <button ref={filterButton} type="button" onClick={() => setFiltersOpen((open) => !open)} className={`inline-flex min-h-11 items-center gap-2 whitespace-nowrap rounded-xl px-4 py-2.5 text-sm font-semibold ${activeFilterCount ? "bg-red-600 text-white hover:bg-red-700" : "bg-white text-zinc-800 hover:bg-zinc-100"}`} aria-label={`Filter inventory${activeFilterCount ? ` (${activeFilterCount} active)` : ""}`} aria-haspopup="dialog" aria-controls={filtersOpen ? "inventory-filters" : undefined} aria-expanded={filtersOpen}><Icon name="filter" className="size-4" />Filter{activeFilterCount > 0 && <span aria-hidden="true" className="flex size-5 items-center justify-center rounded-full bg-white text-xs font-bold text-red-700">{activeFilterCount}</span>}</button>
+                        {filtersOpen && <div ref={filterPanel} id="inventory-filters" role="dialog" aria-label="Inventory filters" className="absolute right-0 top-12 z-20 grid w-64 max-w-[calc(100vw-5rem)] gap-3 rounded-xl border border-zinc-200 bg-white p-4 text-zinc-800 shadow-xl">
+                          <div className="grid gap-1.5 text-xs font-semibold">
+                            <label htmlFor="inventory-filter-category">Category</label>
+                            <select id="inventory-filter-category" value={category} onChange={(event) => setCategory(event.target.value)} className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm font-normal">
                               {["All items", ...categories].map((item) => <option key={item}>{item}</option>)}
                             </select>
-                          </label>
-                          <label className="grid gap-1.5 text-xs font-semibold">Stock status
-                            <select value={stockFilter} onChange={(event) => setStockFilter(event.target.value)} className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm font-normal">
+                          </div>
+                          <div className="grid gap-1.5 text-xs font-semibold">
+                            <label htmlFor="inventory-filter-stock">Stock status</label>
+                            <select id="inventory-filter-stock" value={stockFilter} onChange={(event) => setStockFilter(event.target.value)} className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm font-normal">
                               {["All stock", "In stock", "Low stock", "Out of stock"].map((item) => <option key={item}>{item}</option>)}
                             </select>
-                          </label>
-                          <button type="button" onClick={() => { setCategory("All items"); setStockFilter("All stock"); }} className="justify-self-start text-xs font-bold text-red-600 hover:text-red-700">Clear filters</button>
+                          </div>
+                          <div className="flex items-center justify-between gap-3 border-t border-zinc-200 pt-3">
+                            <button type="button" onClick={() => { setCategory("All items"); setStockFilter("All stock"); }} className="min-h-11 text-xs font-bold text-red-600 hover:text-red-700">Clear filters</button>
+                            <Button type="button" onClick={() => { setFiltersOpen(false); filterButton.current?.focus(); }}>Done</Button>
+                          </div>
                         </div>}
-                      </div>
                     </div>
                   </div>
                 </div>
@@ -834,7 +879,7 @@ function InventoryDashboard({ session, onLogout }: { session: Session; onLogout:
                         return (
                           <tr key={product.id} className={`group hover:bg-zinc-50/70 ${selectedIds.includes(product.id) ? "bg-red-50/50" : ""}`}>
                             <td className="px-5 py-3"><input type="checkbox" aria-label={`Select ${product.name}`} checked={selectedIds.includes(product.id)} onChange={() => setSelectedIds((ids) => ids.includes(product.id) ? ids.filter((id) => id !== product.id) : [...ids, product.id])} /></td>
-                            <td className={compactRows ? "px-3 py-2" : "px-3 py-4"}>
+                            <td className="px-3 py-4">
                               <div className="flex items-center gap-3">
                                 <div className={`flex size-11 shrink-0 items-center justify-center rounded-xl text-sm font-bold ${product.color}`}>{product.symbol}</div>
                                 <div className="min-w-0"><p className="truncate text-sm font-semibold">{product.name}</p><p className="mt-1 text-xs text-zinc-400">{product.sku}</p></div>
@@ -906,7 +951,7 @@ function InventoryDashboard({ session, onLogout }: { session: Session; onLogout:
 
       {showAdd && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/40 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="add-title">
-          <form onSubmit={saveProduct} className="max-h-[90dvh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl">
+          <form ref={productForm} onSubmit={saveProduct} className="staff-product-form max-h-[90dvh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl">
             <div className="mb-6 flex items-start justify-between">
               <div><h2 id="add-title" className="text-xl font-bold">{editingProduct ? "Edit product" : "Add a new product"}</h2><p className="mt-1 text-sm text-zinc-500">{editingProduct ? "Update the item details and stock level." : "Add an item to your inventory catalog."}</p></div>
               <button type="button" onClick={closeProductForm} className="rounded-xl p-2 text-zinc-400 hover:bg-zinc-100" aria-label="Close dialog"><Icon name="x" /></button>

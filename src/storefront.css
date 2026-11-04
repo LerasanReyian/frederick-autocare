@@ -238,6 +238,10 @@
   .storefront .brand { min-width: 0; }
   .storefront .brand-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .storefront .main-nav { z-index: 21; }
+  .storefront .main-nav { max-height:calc(100dvh - 92px); overflow-y:auto; overscroll-behavior:contain; }
+  .storefront .drive-section { min-height:auto; align-items:stretch; padding:64px 24px; }
+  .storefront .content-panel { width:100%; max-width:760px; margin-inline:auto; }
+  .storefront .film-caption { display:none; }
 }
 @media (max-width: 760px) {
   .storefront .drive-hero { padding: 104px 20px 24px; }
@@ -255,6 +259,8 @@
   .storefront .catalog-search,
   .storefront .catalog-filters { min-width: 0; }
   .storefront .catalog-filter { max-width: 100%; }
+  .storefront .modal-backdrop { padding:12px; }
+  .storefront .booking-modal { max-height:calc(100dvh - 24px); overscroll-behavior:contain; }
   .storefront .film-interlude { align-items: flex-start; padding: 48px 20px; text-align: left; }
   .storefront .film-interlude > div,
   .storefront .film-interlude > p { max-width: 100%; }

@@ -19,6 +19,34 @@
 .staff-dashboard .text-emerald-600 { color:#047857; }
 .staff-dashboard .text-amber-600 { color:#92400e; }
 
+/* Staff layouts must accommodate real names, notes and narrow touch screens. */
+.staff-sidebar { max-width:calc(100vw - 24px); overflow-y:auto; overscroll-behavior:contain; }
+.staff-dashboard main :is(p, h1, h2, code, span),
+.staff-dashboard .booking-admin-card span { overflow-wrap:anywhere; }
+.staff-dashboard .booking-admin-card,
+.staff-dashboard .booking-admin-card :is(label, .booking-detail-grid > div) { min-width:0; }
+.staff-dashboard .booking-admin-card select { width:100%; }
+.staff-dashboard .staff-summary article { min-width:0; }
+.staff-dashboard .staff-summary article > p { overflow-wrap:anywhere; }
+@media(max-width:1023px) {
+  .staff-dashboard :is(button, a, input:not([type=checkbox]), select) { min-height:44px; }
+  .staff-dashboard :is(input:not([type=checkbox]), select, textarea) { font-size:16px; min-width:0; max-width:100%; }
+  .staff-dashboard button:focus-visible,
+  .staff-dashboard a:focus-visible { outline:2px solid #b32620; outline-offset:3px; }
+}
+@media(max-width:639px) {
+  .staff-toolbar { gap:12px; padding:12px 16px; }
+  .staff-toolbar > div:last-child { margin-left:auto; }
+  .staff-dashboard main > div { padding:20px 16px; }
+  .staff-dashboard .staff-summary article { padding:14px; }
+  .staff-dashboard .staff-summary article > div { margin-bottom:12px; gap:6px; }
+  .staff-dashboard .staff-summary article > p:first-of-type { font-size:24px; }
+  .staff-dashboard .booking-admin-card { gap:16px; }
+  .staff-dashboard .booking-detail-grid { grid-template-columns:minmax(0,1fr); }
+  .staff-dashboard .booking-detail-label { font-size:12px; line-height:1.4; }
+  .staff-dashboard .staff-product-form { max-height:calc(100dvh - 32px); padding:20px 16px; overscroll-behavior:contain; }
+}
+
 @media(max-width:600px){
   .staff-entry-layout{
     display:flex;
@@ -64,7 +92,7 @@
     position:relative;
     z-index:1;
     max-width:none;
-    padding:30px 22px 24px;
+    padding:64px 22px 24px;
   }
   .staff-entry-card h2{
     max-width:9ch;
