@@ -1,299 +1,412 @@
 # Frederick Car Accessories
 
-A responsive storefront and MySQL-backed inventory dashboard for Frederick Car Accessories in Davao City.
+Responsive storefront and staff inventory dashboard for a local car-accessories
+shop.
 
-> “We make your car look and feel better!”
+## Overview
 
-## Getting started
+The application lets customers browse automotive services and submit appointment
+requests. It also provides a staff-only inventory and booking dashboard with
+separate Admin and Employee permissions.
 
-### Requirements
+The frontend is a React/Vite single-page application. The API is an
+Express-compatible server running through a small NestJS adapter. The local
+development database is MariaDB supplied by XAMPP.
 
-- Node.js 20.19+ and npm
-- XAMPP with its MySQL/MariaDB module
+## Contents
 
-### Configure XAMPP/MariaDB
+- [Screenshots and demo](#screenshots-and-demo)
+- [Features](#features)
+- [Tech stack](#tech-stack)
+- [Architecture](#architecture)
+- [Project structure](#project-structure)
+- [Getting started](#getting-started)
+- [Configuration](#configuration)
+- [Usage](#usage)
+- [API overview](#api-overview)
+- [Testing](#testing)
+- [Project status and roadmap](#project-status-and-roadmap)
+- [Documentation](#documentation)
+- [Contributing](#contributing)
+- [Team](#team)
+- [Credits and acknowledgments](#credits-and-acknowledgments)
+- [License](#license)
 
-This project connects to XAMPP's MariaDB server through the Express API. XAMPP
-does not need to serve the React app. Only one database server can use a port
-at a time, so stop the separate Windows `MySQL80` service before starting
-XAMPP MySQL.
+## Screenshots and demo
 
-Start XAMPP's MySQL/MariaDB module and keep the connection settings in the
-project's private `.env` file. Use [.env.example](./.env.example) as the
-template; do not commit `.env` or share its values. The database schema and
-sample inventory are in [database/schema.sql](./database/schema.sql).
+Screenshots are not currently stored in the repository.
 
-To verify that the configured API can reach the database:
+To add them later, place these files in `docs/screenshots/`:
 
-```powershell
-Invoke-WebRequest http://127.0.0.1:3002/api/health
-```
-
-The response should contain `"status":"ok"` and `"database":"connected"`. The
-`DB_PORT` in `.env` must match the MySQL port shown by XAMPP.
-
-### Run the app
-
-Start the API and Vite in separate PowerShell terminals from the project root:
-
-```powershell
-cd C:\Users\User\gihub-lerasan\sia\frederick-autocare
-npm run server
-```
-
-```powershell
-cd C:\Users\User\gihub-lerasan\sia\frederick-autocare
-npm run dev
-```
-
-Open the local URL printed by Vite (typically `http://localhost:5173`).
-Vite proxies `/api` requests to the local Express API on port `3002`.
-For a separate frontend/API origin, set `VITE_API_BASE_URL` when building the frontend and set `CORS_ORIGIN` on the API to the exact frontend origin. Do not put database credentials in any `VITE_*` variable.
-
-### Deploy with GitHub Actions to Azure
-
-See [AZURE_DEPLOYMENT.md](./AZURE_DEPLOYMENT.md) for the current activation,
-resource, data-migration, environment and GitHub OIDC instructions.
-
-The current target is one Linux App Service serving the built website and API
-with `npm start`, plus Azure Database for MySQL Flexible Server. The frontend
-uses same-origin `/api` requests. The old split Container Apps workflow is now
-manual and disabled unless explicitly enabled.
-
-The workflow builds, tests, lints and packages the runtime. Deployment remains
-skipped until the repository variable `AZURE_DEPLOY_ENABLED=true` is configured
-after Azure resources, database settings and credentials are ready. The student
-subscription has not yet been activated; Azure publication is not complete.
-
-
-### Available scripts
-
-| Command | Description |
-| --- | --- |
-| `npm run dev` | Start the Vite development server |
-| `npm run server` | Start the local inventory API |
-| `npm run build` | Create a production build in `dist/` |
-| `npm run preview` | Preview the production build locally |
-| `npm run lint` | Run ESLint |
+- `home.png` — public storefront
+- `services.png` — service catalog
+- `booking.png` — booking form
+- `staff-login.png` — staff entry screen
+- `inventory.png` — inventory dashboard
 
 ## Features
 
-- Responsive public storefront with service search and category filters.
-- Interactive car video scrubber with service hotspots and calibration controls.
-- Multi-step service booking form with client-side validation, Davao timezone handling, review, confirmation, and database persistence.
-- Staff inventory dashboard at `/inventory`, backed by XAMPP/MariaDB; includes role-based Admin and Employee access, product management, stock updates, filters, bulk actions, and CSV export.
-- Booking requests enforce Monday-Saturday, 8:00 AM-5:00 PM availability, prevent duplicate pending/confirmed appointment times, validate approved services, and support staff refresh, status updates, and predefined responses.
-- Appointment times are interpreted and displayed in the shop's Davao/Asia-Manila timezone.
-- Admins can approve or reject employee access requests, while Employees can view bookings, update booking statuses, restock inventory, and export inventory reports.
+### Public storefront
 
-## Routes
+| Feature | Status |
+| --- | --- |
+| Service catalog with category filters and search | Available |
+| Scroll-controlled car film with MP4, WebM, poster, and WebP fallback | Available |
+| Service detail and booking flow | Available |
+| Appointment validation for Monday-Saturday, 08:00-17:00 Manila time | Available |
+| Duplicate pending/confirmed appointment prevention | Available |
+| Contact, shop information, and directions links | Available |
+| Installable PWA shell | Available |
+| Automatic customer email or SMS notifications | Planned |
 
-- `/` — Public storefront.
-- `/inventory` — Inventory dashboard.
+### Staff portal
 
-## Inventory API
+| Feature | Status |
+| --- | --- |
+| Staff ID verification before password sign-in | Available |
+| Admin and Employee role authorization | Available |
+| HTTP-only session cookies | Available |
+| Product search, filtering, creation, editing, and deletion | Available |
+| Product restocking and CSV export | Available |
+| Booking review and status updates | Available |
+| Employee account requests and Admin approval/rejection | Available |
+| Automatic appointment-duration scheduling | Planned |
 
-The Express API exposes these endpoints under `/api`:
+## Tech stack
 
-| Method | Endpoint | Purpose |
-| --- | --- | --- |
-| `GET` | `/health` | Check API/MySQL connectivity |
-| `POST` | `/auth/login` | Sign in; the server determines the account role |
-| `POST` | `/auth/register` | Submit an employee account request |
-| `GET` | `/auth/me` | Restore the current staff session |
-| `POST` | `/auth/logout` | End the current staff session |
-| `GET` | `/auth/requests` | List pending requests for Admins |
-| `POST` | `/auth/requests/:id/approve` | Approve an employee request |
-| `POST` | `/auth/requests/:id/reject` | Reject an employee request |
-| `POST` | `/bookings` | Submit a public booking request |
-| `GET` | `/bookings` | List booking requests for Admins and Employees |
-| `PUT` | `/bookings/:id/status` | Update a booking status with a predefined response |
-| `GET` | `/products` | List inventory |
-| `POST` | `/products` | Create a product |
-| `PUT` | `/products/:id` | Update a product |
-| `POST` | `/products/:id/restock` | Add stock (the UI uses 25 units) |
-| `DELETE` | `/products/:id` | Delete one product |
-| `POST` | `/products/bulk-delete` | Delete selected products |
-
-## Inventory accounts
-
-The API creates the initial local Admin and Employee accounts on first startup
-if they do not already exist. Configure their values in `.env` before starting
-the server. New users do not choose an account type during login. They submit
-an employee account request from the **Request access** page, and an Admin
-must approve it before the account is inserted into the active user table.
-
-| Role | Default email | Default password | Permissions |
+| Layer | Technology | Version | Purpose |
 | --- | --- | --- | --- |
-| Admin | `admin@frederickauto.local` | `admin123` | View, add, edit, restock, and delete products |
-| Employee | `employee@frederickauto.local` | `employee123` | View, add, restock, export inventory, and manage bookings |
+| Runtime | Node.js | 20.19+ required by project docs | API, scripts, and tooling |
+| Frontend | React | 19.2.8 | Storefront and staff portal UI |
+| Frontend tooling | Vite | 8.3.0 | Development server and production build |
+| API runtime | Express | 5.3.0 | HTTP routes and middleware |
+| API adapter | NestJS | 11.2.8 | Runtime wrapper for the existing API |
+| Database | MariaDB through XAMPP | 10.4.32 verified locally | Persistent bookings and inventory |
+| Database driver | mysql2 | 3.24.6 | Promise-based MySQL/MariaDB pool |
+| Styling | Tailwind CSS | 4.3.3 | Utility styling through the Vite plugin |
+| Icons and graphics | lucide-react | 1.57.0 | UI icons |
+| 3D/media dependencies | Three.js and React Three Fiber | 0.186.1 / 9.8.1 | Frontend visual dependencies |
 
-Change `ADMIN_PASSWORD` and `EMPLOYEE_PASSWORD` in `.env` before using the
-portal beyond local testing. Passwords are stored as scrypt hashes, and the
-browser receives an HTTP-only session cookie. The API protects every inventory
-endpoint; the role-based UI restrictions are backed by server-side checks.
+Versions come from [package.json](package.json), except the Node.js
+requirement in the existing project setup and the MariaDB version verified in
+the local XAMPP instance.
 
-## Authentication and API access
+## Architecture
 
-This application does **not** currently use an API key. Inventory access uses
-email/password login and an HTTP-only session cookie:
+The Vite development server serves the React application and proxies `/api`
+requests to the local API. The API uses `mysql2/promise` to access MariaDB.
+Production builds are served by the API server from `dist/`.
 
-- `POST /api/auth/login` creates the session.
-- `GET /api/auth/me` verifies the signed-in account.
-- `POST /api/auth/logout` clears the session.
+```text
+Browser
+  ├── Vite dev server :5173 ──┐
+  │                           ├── /api ──> Express API :3002
+  └── API-served production ──┘             │
+                                           └── MariaDB/XAMPP :3307
+```
 
-The browser sends the cookie automatically with inventory requests. Because it
-is HTTP-only, frontend JavaScript cannot read its value; this is intentional
-and safer than exposing a token to scripts.
-
-To inspect the current authenticated request locally:
-
-1. Sign in at `/inventory`.
-2. Open browser Developer Tools and select **Network**.
-3. Reload the inventory page.
-4. Select the request to `/api/auth/me` or `/api/products`.
-5. Check **Request Headers > Cookie** to confirm a session was sent.
-6. Check the response from `/api/auth/me` for the current account and role.
-
-Do not copy or share the cookie value. It authenticates the current browser
-session. If an external service later requires an API key, store it in a
-server-only environment variable and never expose it in `VITE_*` variables,
-frontend source code, screenshots, or chat.
+| Module | Location | Responsibility |
+| --- | --- | --- |
+| Storefront entry | [src/App.jsx](src/App.jsx) | Public sections, dialogs, and staff entry |
+| Service catalog | [src/components/ServiceCatalog.jsx](src/components/ServiceCatalog.jsx) | Searchable and filterable services |
+| Booking form | [src/components/BookingModal.jsx](src/components/BookingModal.jsx) | Client-side booking submission |
+| Inventory portal | [src/components/InventoryPortal.tsx](src/components/InventoryPortal.tsx) | Staff dashboard and inventory workflows |
+| API routes | [server/index.js](server/index.js) | Health, booking, auth, inventory, and booking-status routes |
+| Staff gate | [server/staff-access.js](server/staff-access.js) | Staff ID verification and entry proof |
+| Database pool | [server/db.js](server/db.js) | MariaDB connection configuration |
+| Database initializer | [server/initialize-db.js](server/initialize-db.js) | Creates missing database objects at API startup |
+| Vercel adapter | [api/index.js](api/index.js) | Loads the API through NestJS for Vercel functions |
+| PWA build | [scripts/build-pwa.js](scripts/build-pwa.js) | Generates the service worker and precache list |
 
 ## Project structure
 
 ```text
 frederick-autocare/
-├── public/
-│   ├── favicon.svg
-│   └── manifest.webmanifest
-├── src/
-│   ├── components/
-│   │   ├── BookingModal.jsx
-│   │   ├── Footer.jsx
-│   │   ├── Header.jsx
-│   │   ├── InventoryPortal.tsx
-│   │   ├── ServiceCard.jsx
-│   │   └── ServiceCatalog.jsx
-│   ├── data/
-│   │   └── servicesData.js
-│   ├── hooks/
-│   │   └── useBookingState.js
-│   ├── App.css
-│   ├── App.jsx
-│   ├── index.css
-│   └── main.jsx
-├── database/
-│   └── schema.sql
-├── server/
-│   ├── db.js
+├── api/                         # Vercel function entrypoint
 │   └── index.js
-├── .gitignore
-├── .env.example
-├── eslint.config.js
-├── index.html
-├── package-lock.json
-├── package.json
-├── README.md
-└── vite.config.js
+├── database/                    # Canonical database schema and sample products
+│   └── schema.sql
+├── docs/                        # Maintainer and setup documentation
+│   └── database.md
+├── public/                      # Static media, manifest, and favicon
+├── scripts/                     # Development and PWA build scripts
+│   ├── build-pwa.js
+│   ├── dev.js
+│   └── service-worker.template.js
+├── server/                     # Express-compatible API and database access
+│   ├── db.js
+│   ├── index.js
+│   ├── initialize-db.js
+│   ├── nest-app.module.js
+│   ├── staff-access.js
+│   └── start.js
+├── shared/                     # Shared appointment validation
+├── src/                        # React application
+│   ├── components/
+│   ├── data/
+│   ├── hooks/
+│   ├── App.jsx
+│   └── main.jsx
+├── tests/                      # Node test runner tests
+├── .env.example                # Local configuration template
+├── eslint.config.js            # ESLint configuration
+├── index.html                  # Vite HTML entry
+├── package.json                # Scripts and dependencies
+├── vercel.json                 # Vercel build and SPA routing configuration
+└── vite.config.js              # Vite plugins and API proxy
 ```
 
-`dist/` is generated by `npm run build`, and `node_modules/` contains installed dependencies; neither is listed above.
+Generated `dist/`, dependency folders, local database files, and QA browser
+profiles are intentionally omitted.
 
-## Database and security notes
+## Getting started
 
-- Inventory products are read from and written to the shared MySQL `inventory_products` table through the Express API. The SQL setup inserts the initial 12 catalog products once; running the script again does not overwrite existing product data.
-- Existing inventory stored by older versions in this browser's local storage is not imported automatically. Review or export any legacy data before switching to MySQL.
-- The storefront uses a full-opacity, scroll-controlled background film. Previous hotspot components remain in source but are no longer mounted.
-- Staff authentication uses database-backed accounts, scrypt password hashes, server-side sessions, HTTP-only cookies, and backend role authorization. The API binds to `127.0.0.1` by default; use HTTPS, a dedicated database user, and production secrets before exposing it beyond local development.
-- Configure the database user with only the permissions the API needs. Store secrets in `.env` or your hosting provider's secret manager, never in frontend environment variables or source control.
-- The public website catalog is not synchronized with inventory stock. Inventory availability in MySQL does not automatically update storefront services.
-- Booking requests are submitted to the Express API and stored in MariaDB. Staff must review and update the booking status; the system does not automatically send customer SMS or email notifications.
+### Prerequisites
 
-## QA status
+- Node.js 20.19 or newer
+- npm
+- XAMPP with its MySQL/MariaDB module
+- Windows local development uses the XAMPP client at
+  `C:\xampp\mysql\bin\mysql.exe`
 
-The latest local QA pass verified the critical public, staff, database, and
-responsive workflows:
+The verified local database is MariaDB 10.4.32 on port `3307`. See the detailed
+[database setup guide](docs/database.md) for import, backup, and recovery steps.
 
-- Booking review, submission, persistence, business-hour validation, duplicate
-  appointment prevention, service validation, and Asia/Manila display.
-- Admin and Employee login, logout, account requests, Admin approval, session
-  restoration, and role restrictions.
-- Product creation, editing, deletion, restocking, duplicate SKU protection,
-  filtered CSV export, selected CSV export, CSV escaping, and mobile export
-  visibility.
-- Booking listing, refresh, status updates, confirmation prompts,
-  predefined responses, mobile layout, and form labels.
-- ESLint, production build, Node syntax checks, live MariaDB integration, and
-  cleanup of temporary QA records.
+### Installation and setup
 
-Formal cross-browser testing, screen-reader testing, production deployment
-testing, concurrent staff edits, appointment-duration scheduling, and
-automated customer email/SMS notifications remain outside this local QA pass.
+1. Install dependencies:
 
-## Shop contact
+   ```powershell
+   npm install
+   ```
 
-- **Address:** Door 5 #99 Cabaguio Avenue, Brgy. Gov Paciano Bangoy, Davao City
-- **Proprietor:** Frederick Adorable
-- **Phone:** 0966 307 2418 / 0927 796 1795
-- **Email:** frederickcaraccessories@gmail.com
+2. Create the private environment file:
 
-## Recovered database on this computer
+   ```powershell
+   Copy-Item .env.example .env
+   ```
 
-The repaired installation uses XAMPP MariaDB on localhost port 3307. The
-previous broken database directory was preserved as
-`C:\xampp\mysql\data\frederick_autocare-broken-20261104-1842`; a failed raw
-file-copy attempt was preserved as
-`C:\xampp\mysql\data\frederick_autocare-raw-copy-20261104-1848`. The database
-was rebuilt through a logical SQL export/import, so its InnoDB dictionary is
-consistent. The temporary recovery copies were removed after the repaired database was verified.
+3. Start MySQL in the XAMPP Control Panel. Stop another Windows MySQL service
+   if it is already using the configured port.
 
+4. Import the schema and sample inventory:
 
+   ```powershell
+   C:\xampp\mysql\bin\mysql.exe -h 127.0.0.1 -P 3307 -u root -p < database\schema.sql
+   ```
 
-## November 2026 storefront and PWA update
+5. Review `.env`, then start the application using one of the commands below.
 
-- Rebuilt the public storefront around the supplied car-reveal video, retaining crimson/navy branding, all 13 services, contact details, booking flow, and the staff portal.
-- `public/drive-reveal.mp4` and `public/drive-reveal.webm` are silent, seek-friendly encodes of the supplied 7.93-second, 1920x1080 clip, with a matching 1280x720 poster and 126-frame WebP fallback. The film stays at full opacity without a filter or dimming layer. The first 70% of a viewport of scroll drives 38% of the clip; the remaining scroll drives the camera orbit. Reverse scroll reverses the film. There is no playback/progress bar. Direct user-driven scroll seeking works with reduced-motion preferences too; decorative CSS transitions remain disabled in that mode.
-- Mobile navigation uses a fixed-header-safe anchor offset, full-width readable content panels, stacked primary actions, and a centered film crop at phone widths. The PWA precaches the poster and matching fallback frames while API responses remain network-only.
-- Production PWA: manifest, 192/512px icons, install control, offline shell and poster. Bookings and staff API responses are never cached or queued. Offline visitors can read the shop guide; submissions and staff access need a connection. New worker versions activate when older tabs close.
-- `npm run build` builds the frontend and generates the versioned service worker. `npm start` starts the API and serves the built site at **http://127.0.0.1:3002/**. The staff portal is **http://127.0.0.1:3002/inventory**. After source edits, rebuild before using this URL.
-- `npm run dev:all` starts both the backend and Vite for editing at **http://127.0.0.1:5173/**. Do not start a second backend if one is already running. Service workers register only in production builds.
-- Vercel deployment uses `vercel.json`, builds the Vite frontend, and serves `/api/*` through the NestJS runtime adapter. Configure the MySQL environment variables in the Vercel project settings; the database must be reachable from Vercel and should use TLS.
-- `npm test` verifies Philippine-time appointment validation, including late-afternoon times, Sundays, invalid calendar dates, and past times. API booking creation serializes requests for the same time to prevent concurrent duplicate slots.
-- Verified locally in Chrome: desktop and 390px mobile layout, forward/reverse scrubbing, filters/search, booking selection, reduced-motion mode, offline reload, and no cached private API data. Chrome PWA installability returned no errors in a normal test profile. Full browser booking submission and staff sign-in/session restoration also passed. Backend verification covered recovered data (12 products, 3 bookings), authenticated inventory operations, appointment persistence, and concurrent conflict rejection; temporary test data was removed.
+On macOS/Linux, use `cp .env.example .env` and a compatible `mysql` client.
+The repository does not define a platform-specific XAMPP command for those
+systems.
 
-### Vercel deployment
+### Run the application
 
-1. Import the repository into Vercel.
-2. Keep the framework preset as **Vite** and use the repository root as the project root.
-3. Add the database variables from `.env.example` in Vercel Project Settings. Use a hosted MySQL-compatible database, not the local `.local-db` directory.
-4. Set `DB_SSL=true` and provide `DB_SSL_CA_BASE64` when the provider requires a CA certificate.
-5. Set strong production values for `ADMIN_PASSWORD`, `EMPLOYEE_PASSWORD`, and `SESSION_HOURS`; do not commit them.
-6. Deploy and verify `/api/health`, `/`, and `/inventory`.
+For development, start the API and Vite in separate terminals:
 
-The Vercel function is [api/index.js](api/index.js). It runs the existing API contract inside the NestJS runtime adapter so the React client and staff workflows keep their current endpoints and cookie behavior.
+```powershell
+npm run server
+```
 
+```powershell
+npm run dev
+```
 
-### Visual refinement — November 4
+Open the Vite URL, normally `http://localhost:5173/`. Vite proxies `/api`
+requests to `http://127.0.0.1:3002`.
 
-The storefront now uses translucent dark panels (48% background opacity on desktop, 42% on mobile), an outlined Frederick wordmark, condensed automotive typography, and an open reveal section. Video pixels remain unfiltered outside the small content surfaces. Service collections display four cards on desktop and two on mobile, with all 13 services reachable through pagination, filters, and search. Booking dialogs remain opaque for readable forms. The design takes visual direction from the user-supplied MotionSites Roadster 3D reference, using the user's own video and shop identity.
+To serve the production build locally:
 
-Validation: production build; forward/reverse seeking; immediate short-scroll reveal; no controller or duration UI; all service pages; filter/search and selected-service booking; 320/390/768px layouts; reduced motion; offline shell and current poster. Source changes are built and available at http://127.0.0.1:3002/.
+```powershell
+npm run build
+npm start
+```
 
+Open `http://127.0.0.1:3002/`; the staff portal is at
+`http://127.0.0.1:3002/inventory`.
 
-### Scroll-video compatibility repair
+## Configuration
 
-The player now offers WebM/VP9 plus MP4/H.264. It retries seeking on loaded-data/can-play events and switches to 126 extracted WebP frames if codecs are unavailable or the decoder stalls. The fallback uses the same trimmed footage and scroll mapping, bounds decoded-image memory, and preserves the poster offline. No playback controls or progress strip are added.
+Copy [.env.example](.env.example) to `.env`. The API requires `DB_HOST`,
+`DB_USER`, and `DB_NAME`. Do not commit `.env` or put database credentials in
+`VITE_*` variables.
 
-Browser regression checks verified actual decoded pixels advancing and reversing in both normal and reduced-motion settings, plus forward/reverse animation with both video-format requests deliberately blocked. The active in-app viewer could not be inspected directly because its browser-control tool failed to start; compatibility was verified in local Chrome with the above failure modes simulated. Refresh an existing preview after rebuilding to load the new fingerprinted client code.
+| Setting | Default in `.env.example` | Meaning |
+| --- | --- | --- |
+| `DB_HOST` | `127.0.0.1` | MariaDB host |
+| `DB_PORT` | `3307` | MariaDB port |
+| `DB_USER` | `root` | Database user |
+| `DB_PASSWORD` | empty | Local database password |
+| `DB_NAME` | `frederick_autocare` | Database name |
+| `DB_CONNECTION_LIMIT` | `10` | Connection pool limit |
+| `DB_CONNECT_TIMEOUT` | `5000` | Connection timeout in milliseconds |
+| `DB_SSL` | `false` | Enables TLS when `true` |
+| `DB_SSL_CA` | empty | TLS CA certificate |
+| `DB_SSL_CA_BASE64` | empty | Base64 TLS CA certificate |
+| `DB_SSL_REJECT_UNAUTHORIZED` | `true` | Verifies the TLS certificate |
+| `API_PORT` | `3002` | Local API port |
+| `API_HOST` | `127.0.0.1` | Local API bind address |
+| `CORS_ORIGIN` | empty | Comma-separated allowed origins |
+| `ADMIN_EMAIL` | `admin@frederickauto.local` | Local Admin bootstrap email |
+| `ADMIN_PASSWORD` | `admin123` | Local Admin bootstrap password |
+| `EMPLOYEE_EMAIL` | `employee@frederickauto.local` | Local Employee bootstrap email |
+| `EMPLOYEE_PASSWORD` | `employee123` | Local Employee bootstrap password |
+| `SESSION_HOURS` | `8` | Session lifetime in hours |
+| `VITE_API_BASE_URL` | empty | Optional separate API origin for frontend builds |
 
+The default account values are for local development only. Replace the
+passwords before exposing the API beyond a local machine.
 
-## Staff ID entry and QA update
+## Usage
 
-Staff login now requires a database-backed ID check before password sign-in. Each active account has a unique `staff_id`; administrators can view team IDs under **Account requests**. The server binds a ten-minute HttpOnly entry proof to the selected staff account and rejects login without it. Newly approved employees receive an ID automatically. Customer booking stays public.
+### Customer flow
 
-The supplied `a.mp4` is used for the staff video hero, with WebM and MP4 versions. Public dialogs blur the background and prevent background interaction; fonts and touch targets are larger. See `QA_CHECKPOINT.md` for tested flows and remaining QA scope.
+1. Open the storefront.
+2. Browse services or filter the catalog.
+3. Select a service and open the booking form.
+4. Enter customer, vehicle, date, time, and notes.
+5. Submit the request and wait for staff confirmation.
 
-phpMyAdmin should connect to the repaired XAMPP database on port 3307. Start
-the XAMPP MySQL module before opening phpMyAdmin. The original broken database
-files were preserved rather than deleted.
+### Staff flow
+
+1. Open `/inventory`.
+2. Enter an active Staff ID.
+3. Sign in with the corresponding email and password.
+4. Review bookings or manage inventory according to the account role.
+5. Use the Admin account to approve employee access requests.
+
+The local bootstrap accounts are defined by [.env.example](.env.example):
+
+| Role | Email | Password | Main permissions |
+| --- | --- | --- | --- |
+| Admin | `admin@frederickauto.local` | `admin123` | Manage products and employee requests |
+| Employee | `employee@frederickauto.local` | `employee123` | View/manage inventory and bookings |
+
+The API assigns Staff IDs when accounts are initialized. Query the database
+for the current IDs; do not assume an ID from another database instance.
+
+## API overview
+
+All endpoints are under `/api`.
+
+### Public endpoints
+
+| Method | URL | Who can call it | Purpose |
+| --- | --- | --- | --- |
+| `GET` | `/api/health` | Anyone | Check API and database connectivity |
+| `POST` | `/api/bookings` | Anyone | Submit a booking request |
+| `POST` | `/api/auth/entry` | Anyone | Verify an active Staff ID |
+| `GET` | `/api/auth/entry` | Anyone with entry cookie | Check Staff ID verification |
+| `DELETE` | `/api/auth/entry` | Anyone with entry cookie | Clear Staff ID verification |
+| `POST` | `/api/auth/login` | Verified staff | Create a staff session |
+| `POST` | `/api/auth/register` | Anyone | Submit an employee account request |
+
+### Authenticated endpoints
+
+| Method | URL | Who can call it | Purpose |
+| --- | --- | --- | --- |
+| `GET` | `/api/auth/me` | Signed-in staff | Restore the current session |
+| `POST` | `/api/auth/logout` | Signed-in staff | End the current session |
+| `GET` | `/api/products` | Signed-in staff | List inventory |
+| `POST` | `/api/products` | Admin or Employee | Create a product |
+| `PUT` | `/api/products/:id` | Admin | Edit a product |
+| `POST` | `/api/products/:id/restock` | Admin or Employee | Add stock |
+| `DELETE` | `/api/products/:id` | Admin | Delete a product |
+| `POST` | `/api/products/bulk-delete` | Admin | Delete selected products |
+| `GET` | `/api/bookings` | Admin or Employee | List booking requests |
+| `PUT` | `/api/bookings/:id/status` | Admin or Employee | Update booking status |
+| `GET` | `/api/auth/staff` | Admin | List staff accounts |
+| `GET` | `/api/auth/requests` | Admin | List account requests |
+| `POST` | `/api/auth/requests/:id/approve` | Admin | Approve an employee request |
+| `POST` | `/api/auth/requests/:id/reject` | Admin | Reject an employee request |
+
+There are no planned-but-unimplemented API routes documented in the source.
+
+## Testing
+
+Run the automated appointment tests:
+
+```powershell
+npm test
+```
+
+Run lint:
+
+```powershell
+npm run lint
+```
+
+Run the production build:
+
+```powershell
+npm run build
+```
+
+The tests cover Manila-time appointment hours, Sunday handling, invalid dates,
+malformed input, and past appointments. The repository also contains QA
+records in [QA_CHECKPOINT.md](QA_CHECKPOINT.md), but not a full automated
+browser test suite.
+
+## Project status and roadmap
+
+### Available
+
+- Public storefront and service catalog
+- Scroll-driven car film with offline fallback assets
+- Booking validation and persistence
+- Staff ID gate, password login, sessions, and role authorization
+- Inventory and booking operations
+- PWA shell generation
+- Local MariaDB setup and API health check
+
+### Planned or outside the current automated scope
+
+- Automated customer email or SMS notifications
+- Appointment-duration scheduling
+- Formal cross-browser and screen-reader testing
+- Production deployment testing
+- Concurrent staff-edit testing
+- Full automated browser regression coverage
+
+## Documentation
+
+- [Database setup guide](docs/database.md)
+- [System guide](README_SYSTEM_GUIDE.md)
+- [QA checkpoint](QA_CHECKPOINT.md)
+- [Mobile video handoff](MOBILE_VIDEO_HANDOFF.md)
+- [JavaScript dependency assessment](.github/modernize/assessment/reports/report-20261104102419/js-assessment-report.md)
+
+## Contributing
+
+No repository-specific contribution or branch convention is documented.
+
+Suggested workflow:
+
+1. Create a focused branch.
+2. Make a small, reviewable change.
+3. Run `npm test`, `npm run lint`, and `npm run build`.
+4. Commit with a short imperative message.
+5. Open a pull request describing behavior and verification.
+
+## Team
+
+| Name | Role |
+| --- | --- |
+| TODO | Project owner |
+| TODO | Maintainer |
+| TODO | Contributor |
+
+## Credits and acknowledgments
+
+- React and React DOM provide the UI runtime.
+- Vite and `@vitejs/plugin-react` provide development and production builds.
+- Express and NestJS provide the API runtime and adapter.
+- MariaDB/XAMPP and `mysql2` provide local persistence.
+- Tailwind CSS, `lucide-react`, Three.js, React Three Fiber, and related
+  frontend packages are listed in [package.json](package.json).
+- The storefront uses local video and image assets in [public/](public/).
+
+## License
+
+License: to be decided. No `LICENSE` file is present in the repository.
