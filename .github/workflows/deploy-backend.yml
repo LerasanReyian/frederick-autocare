@@ -35,7 +35,29 @@ jobs:
       - name: Run backend tests
         run: npm test
 
+      - name: Check Azure deployment configuration
+        id: azure-config
+        shell: bash
+        run: |
+          missing=()
+
+          [[ -n "${AZURE_RESOURCE_GROUP}" ]] || missing+=("AZURE_RESOURCE_GROUP variable")
+          [[ -n "${AZURE_CONTAINER_APP_NAME}" ]] || missing+=("AZURE_CONTAINER_APP_NAME variable")
+          [[ -n "${AZURE_CONTAINER_REGISTRY}" ]] || missing+=("AZURE_CONTAINER_REGISTRY variable")
+          [[ -n "${{ secrets.AZURE_CLIENT_ID }}" ]] || missing+=("AZURE_CLIENT_ID secret")
+          [[ -n "${{ secrets.AZURE_TENANT_ID }}" ]] || missing+=("AZURE_TENANT_ID secret")
+          [[ -n "${{ secrets.AZURE_SUBSCRIPTION_ID }}" ]] || missing+=("AZURE_SUBSCRIPTION_ID secret")
+
+          if [[ ${#missing[@]} -gt 0 ]]; then
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Skipping Azure deployment because required configuration is missing: ${missing[*]}"
+            exit 0
+          fi
+
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+
       - name: Log in to Azure
+        if: steps.azure-config.outputs.ready == 'true'
         uses: azure/login@v2
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
@@ -43,16 +65,19 @@ jobs:
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: Log in to Azure Container Registry
+        if: steps.azure-config.outputs.ready == 'true'
         uses: azure/cli@v2
         with:
           inlineScript: az acr login --name "$AZURE_CONTAINER_REGISTRY"
 
       - name: Build and push backend image
+        if: steps.azure-config.outputs.ready == 'true'
         run: |
           docker build --tag "$AZURE_CONTAINER_REGISTRY.azurecr.io/$IMAGE_NAME:${GITHUB_SHA}" .
           docker push "$AZURE_CONTAINER_REGISTRY.azurecr.io/$IMAGE_NAME:${GITHUB_SHA}"
 
       - name: Deploy backend container
+        if: steps.azure-config.outputs.ready == 'true'
         uses: azure/container-apps-deploy-action@v2
         with:
           resourceGroup: ${{ env.AZURE_RESOURCE_GROUP }}

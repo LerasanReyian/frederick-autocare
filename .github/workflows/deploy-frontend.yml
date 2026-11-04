@@ -72,18 +72,33 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     steps:
-      - name: Validate resource configuration
-        shell: bash
-        run: |
-          test -n "$AZURE_WEBAPP_NAME" || { echo "Set repository variable AZURE_WEBAPP_NAME"; exit 1; }
-          test -n "$AZURE_RESOURCE_GROUP" || { echo "Set repository variable AZURE_RESOURCE_GROUP"; exit 1; }
-
       - name: Download tested runtime package
         uses: actions/download-artifact@v4
         with:
           name: azure-runtime
 
+      - name: Check Azure deployment configuration
+        id: azure-config
+        shell: bash
+        run: |
+          missing=()
+
+          [[ -n "${AZURE_WEBAPP_NAME}" ]] || missing+=("AZURE_WEBAPP_NAME variable")
+          [[ -n "${AZURE_RESOURCE_GROUP}" ]] || missing+=("AZURE_RESOURCE_GROUP variable")
+          [[ -n "${{ secrets.AZURE_CLIENT_ID }}" ]] || missing+=("AZURE_CLIENT_ID secret")
+          [[ -n "${{ secrets.AZURE_TENANT_ID }}" ]] || missing+=("AZURE_TENANT_ID secret")
+          [[ -n "${{ secrets.AZURE_SUBSCRIPTION_ID }}" ]] || missing+=("AZURE_SUBSCRIPTION_ID secret")
+
+          if [[ ${#missing[@]} -gt 0 ]]; then
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Skipping Azure deployment because required configuration is missing: ${missing[*]}"
+            exit 0
+          fi
+
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+
       - name: Log in to Azure
+        if: steps.azure-config.outputs.ready == 'true'
         uses: azure/login@v2
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
@@ -91,6 +106,7 @@ jobs:
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: Configure App Service
+        if: steps.azure-config.outputs.ready == 'true'
         uses: azure/cli@v2
         with:
           inlineScript: |
@@ -105,12 +121,14 @@ jobs:
               --startup-file "npm start"
 
       - name: Deploy website and API together
+        if: steps.azure-config.outputs.ready == 'true'
         uses: azure/webapps-deploy@v3
         with:
           app-name: ${{ env.AZURE_WEBAPP_NAME }}
           package: azure-deploy.zip
 
       - name: Verify public site, staff page and database health
+        if: steps.azure-config.outputs.ready == 'true'
         shell: bash
         run: |
           host=$(az webapp show --resource-group "$AZURE_RESOURCE_GROUP" --name "$AZURE_WEBAPP_NAME" --query defaultHostName --output tsv)
