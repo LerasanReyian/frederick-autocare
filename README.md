@@ -1,5 +1,27 @@
 # Frederick Car Accessories
 
+### Scroll-video smoothing — November 5, 2026
+
+The landing film now follows scroll input with frame-rate-independent 85ms
+easing and one video seek in flight at a time. It catches up to the latest
+position, reverses on upward scroll, and stops seeking when settled. Reduced
+motion uses direct positioning. The image fallback blends neighboring frames
+and retains its bounded image cache and network-recovery behavior.
+
+The current MP4 was re-encoded with a keyframe every three frames and no
+B-frames to reduce random/reverse-seek decoding work. It is offered before the
+existing WebM; duration, dimensions, footage and full background opacity are
+preserved. MP4 size is approximately 3.36 MB (previously 2.34 MB).
+
+Validation: lint, all three existing tests and production/PWA build passed.
+Local Chrome checked desktop 1440×1000 and phone 390×844, normal/reduced motion,
+forward/reverse rendered pixels, rapid direction changes, settled position,
+idle seeks, and forced video-network failure with image fallback. No page
+errors were recorded. Local scripts/report: `.qa/scroll-smooth-check.mjs` and
+`.qa/scroll-smooth-report.json` (ignored). Changes were built locally; no remote
+deployment was performed. Close existing site tabs and reopen to allow a
+waiting PWA worker to activate.
+
 Responsive storefront and staff inventory dashboard for a local car-accessories
 shop.
 
