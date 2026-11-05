@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import { appointmentError, parseManilaAppointment } from "../shared/appointments.js";
 import pool from "./db.js";
 import { installStaffAccess, newStaffId, cookieValue, entryCookieHeader } from "./staff-access.js";
+import { installAdminAccounts } from "./admin-accounts.js";
 import { initializeDatabase, databaseStartupMessage } from "./initialize-db.js";
 
 const app = express();
@@ -239,6 +240,8 @@ app.get('/api/auth/staff', authenticated, requireRole('admin'), asyncRoute(async
   response.setHeader('Cache-Control', 'no-store');
   response.json(staff);
 }));
+
+installAdminAccounts(app, { pool, authenticated, requireRole, hashPassword });
 
 app.get("/api/auth/requests", authenticated, requireRole("admin"), asyncRoute(async (_request, response) => {
   const [rows] = await pool.query("SELECT id, name, email, requested_role AS role, status, created_at FROM inventory_account_requests WHERE status = 'pending' ORDER BY created_at ASC");

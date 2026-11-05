@@ -271,6 +271,13 @@ function InventoryDashboard({ session, onLogout }: { session: Session; onLogout:
   const [activeSection, setActiveSection] = useState("Inventory");
   const [page, setPage] = useState(0);
   const [teamIds, setTeamIds] = useState<Array<{ name: string; role: string; staffId: string }>>([]);
+  const [showAdminForm, setShowAdminForm] = useState(false);
+  const [showAdminPassword, setShowAdminPassword] = useState(false);
+  const [showAdminConfirmPassword, setShowAdminConfirmPassword] = useState(false);
+  const [creatingAdmin, setCreatingAdmin] = useState(false);
+  const [adminError, setAdminError] = useState("");
+  const [createdAdmin, setCreatedAdmin] = useState<{ name: string; email: string; role: string; staffId: string } | null>(null);
+  const adminSubmission = useRef(false);
   const [accountRequests, setAccountRequests] = useState<AccountRequest[]>([]);
   const [requestsError, setRequestsError] = useState("");
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -385,6 +392,39 @@ function InventoryDashboard({ session, onLogout }: { session: Session; onLogout:
       setBookingsError(error instanceof Error ? error.message : "Unable to refresh bookings.");
     } finally {
       setLoadingBookings(false);
+    }
+  }
+
+  async function createAdmin(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (adminSubmission.current) return;
+    const form = event.currentTarget;
+    const values = new FormData(form);
+    const password = String(values.get("password"));
+    setAdminError("");
+    if (password !== String(values.get("confirmPassword"))) {
+      setAdminError("The passwords do not match.");
+      form.querySelector<HTMLInputElement>('[name="confirmPassword"]')?.focus();
+      return;
+    }
+    adminSubmission.current = true;
+    setCreatingAdmin(true);
+    try {
+      const { user } = await inventoryRequest<{ user: { name: string; email: string; role: string; staffId: string } }>("/auth/admins", {
+        method: "POST",
+        body: JSON.stringify({ name: String(values.get("name")).trim(), email: String(values.get("email")).trim(), password }),
+      });
+      setTeamIds(items => [...items, user].sort((a, b) => a.role.localeCompare(b.role) || a.name.localeCompare(b.name)));
+      setCreatedAdmin(user);
+      setShowAdminPassword(false);
+      setShowAdminConfirmPassword(false);
+      form.reset();
+      setShowAdminForm(false);
+    } catch (error) {
+      setAdminError(error instanceof Error ? error.message : "We could not create the admin account. Please try again.");
+    } finally {
+      adminSubmission.current = false;
+      setCreatingAdmin(false);
     }
   }
 
@@ -784,7 +824,25 @@ function InventoryDashboard({ session, onLogout }: { session: Session; onLogout:
 
             {activeSection === "Account requests" && isAdmin && (
               <section className="border border-zinc-200 bg-white p-6 shadow-sm">
-                <h2 className="text-xl font-bold">Team access IDs</h2><p className="mt-2 text-sm text-zinc-600">Share each ID only with its assigned staff member. Their password is still required.</p><div className="my-5 space-y-3">{teamIds.map(member => <div key={member.staffId} className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-zinc-50 p-3"><span>{member.name} · {member.role}</span><code className="text-sm font-bold">{member.staffId}</code></div>)}</div>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <h2 className="text-xl font-bold">Team access IDs</h2>
+                  <Button type="button" aria-expanded={showAdminForm} aria-controls={showAdminForm ? 'create-admin-form' : undefined} disabled={creatingAdmin} onClick={() => { setShowAdminForm(open => !open); setAdminError(""); setCreatedAdmin(null); setShowAdminPassword(false); setShowAdminConfirmPassword(false); }}><Icon name="plus" className="size-4" />Add admin</Button>
+                </div>
+                <p className="mt-2 text-sm text-zinc-600">Share each ID only with its assigned staff member. Their password is still required.</p>
+                {createdAdmin && <div role="status" className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900"><p className="font-bold">Admin account created for {createdAdmin.name}.</p><p className="mt-1">Staff ID: <code className="font-bold">{createdAdmin.staffId}</code></p><p className="mt-1">Sign in with this ID, {createdAdmin.email}, and the password you assigned.</p></div>}
+                {showAdminForm && <form id="create-admin-form" aria-labelledby="create-admin-title" onSubmit={createAdmin} className="mt-5 rounded-xl border border-zinc-200 bg-zinc-50 p-4 sm:p-5">
+                  <h3 id="create-admin-title" className="text-lg font-bold">Create administrator</h3>
+                  <p className="mt-2 text-sm text-zinc-600">This account will have the same administrator permissions, including managing products and team access.</p>
+                  <fieldset disabled={creatingAdmin} className="mt-4 grid min-w-0 gap-4 sm:grid-cols-2">
+                    <div className="grid min-w-0 gap-1.5"><label htmlFor="new-admin-name" className="text-sm font-semibold">Full name</label><input id="new-admin-name" name="name" required maxLength={120} autoComplete="name" className="min-w-0 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2.5 text-base" /></div>
+                    <div className="grid min-w-0 gap-1.5"><label htmlFor="new-admin-email" className="text-sm font-semibold">Email address</label><input id="new-admin-email" name="email" type="email" required maxLength={190} autoComplete="email" className="min-w-0 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2.5 text-base" /></div>
+                    <div className="grid min-w-0 gap-1.5"><label htmlFor="new-admin-password" className="text-sm font-semibold">Password</label><div className="relative"><input id="new-admin-password" name="password" type={showAdminPassword ? 'text' : 'password'} required minLength={12} maxLength={200} autoComplete="new-password" aria-describedby="new-admin-password-help" className="min-w-0 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2.5 pr-12 text-base" /><button type="button" aria-label={showAdminPassword ? 'Hide password' : 'Show password'} aria-pressed={showAdminPassword} aria-controls="new-admin-password" onClick={() => setShowAdminPassword(value => !value)} className="absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-r-lg text-zinc-600 hover:bg-zinc-100"><Icon name={showAdminPassword ? 'eye-off' : 'eye'} /></button></div><p id="new-admin-password-help" className="text-xs text-zinc-600">Use 12–200 characters.</p></div>
+                    <div className="grid min-w-0 content-start gap-1.5"><label htmlFor="new-admin-confirm" className="text-sm font-semibold">Confirm password</label><div className="relative"><input id="new-admin-confirm" name="confirmPassword" type={showAdminConfirmPassword ? 'text' : 'password'} required minLength={12} maxLength={200} autoComplete="new-password" className="min-w-0 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2.5 pr-12 text-base" /><button type="button" aria-label={showAdminConfirmPassword ? 'Hide confirm password' : 'Show confirm password'} aria-pressed={showAdminConfirmPassword} aria-controls="new-admin-confirm" onClick={() => setShowAdminConfirmPassword(value => !value)} className="absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-r-lg text-zinc-600 hover:bg-zinc-100"><Icon name={showAdminConfirmPassword ? 'eye-off' : 'eye'} /></button></div></div>
+                  </fieldset>
+                  {adminError && <p role="alert" className="mt-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">{adminError}</p>}
+                  <div className="mt-5 flex flex-wrap justify-end gap-3"><Button type="button" variant="secondary" disabled={creatingAdmin} onClick={() => { setShowAdminForm(false); setAdminError(""); setShowAdminPassword(false); setShowAdminConfirmPassword(false); }}>Cancel</Button><Button type="submit" disabled={creatingAdmin}>{creatingAdmin ? 'Creating admin…' : 'Create admin'}</Button></div>
+                </form>}
+                <div className="my-5 space-y-3">{teamIds.map(member => <div key={member.staffId} className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-zinc-50 p-3"><span>{member.name} · {member.role}</span><code className="text-sm font-bold">{member.staffId}</code></div>)}</div>
                 <p className="text-xs font-black uppercase tracking-[0.2em] text-red-600">Admin approval</p>
                 <h2 className="mt-2 text-xl font-bold">Employee account requests</h2>
                 <p className="mt-2 text-sm text-zinc-500">Approve requests to create employee accounts that can sign in and restock inventory.</p>

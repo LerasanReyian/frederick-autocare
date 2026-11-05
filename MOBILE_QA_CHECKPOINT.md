@@ -1,5 +1,15 @@
 # Mobile UI checkpoint — November 5, 2026
 
+## Additional feature: administrator creates another administrator
+
+- Admin path: Account requests → Team access IDs → Add admin. Name, unique email and matching 12–200 character password are required. Password and confirmation have independent show/hide controls, hidden by default and reset when the form closes.
+- POST /api/auth/admins is authenticated and admin-only. It fixes the inserted role to admin, hashes the password, generates a unique FA-A staff ID and returns only public account fields. Existing schema already supports this role; no migration was needed.
+- Implementation: server/admin-accounts.js, its installation in server/index.js, and the admin-only form in InventoryPortal.tsx.
+- Real integration checks passed against a uniquely created local QA database: anonymous 401, employee 403, validation, normalized duplicate email, concurrent duplicate protection, stored password hash, generated ID, new admin login/permissions and public registration remaining employee-only.
+- Chrome checks passed at 320/390/1440px for form submission, confirmation errors, independent visibility toggles, success/ID display, and no overflow. Employee UI has no creation controls. The QA database was removed after the run; existing application records were not changed. Script: ignored .qa/admin-create-check.mjs.
+- The live local API initially returned API route not found because its old process had not reloaded the new route. The verified project API on port 3002 was restarted. Health returned 200/connected and an anonymous POST to the new route returned the expected 401 sign-in requirement. Restart the backend after future backend edits.
+- DEMO_SCRIPT_10_MINUTES.md now contains ten continuous segments totaling 600 seconds, including admin creation and password visibility. Azure publication remains outside this completed local feature.
+
 Project: C:\Users\User\gihub-lerasan\sia\frederick-autocare
 
 ## Latest requested behavior
