@@ -393,9 +393,10 @@ Suggested workflow:
 
 | Name | Role |
 | --- | --- |
-| TODO | Project owner |
-| TODO | Maintainer |
-| TODO | Contributor |
+| Lezly Therese Villanueva | Project Manager |
+| Reyian Lerasan | Programmer |
+| Lance Vladimir Fajardo | QA |
+| Drazen Nepa | Documenter |
 
 ## Credits and acknowledgments
 
